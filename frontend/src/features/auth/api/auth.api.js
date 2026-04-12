@@ -20,4 +20,9 @@ export const authAPI = {
   verifyStepUp: (data) => api.post("/auth/step-up/verify", data),
   resendOTP: (data) => api.post("/auth/step-up/resend", data),
   getStepUpStatus: (action) => api.get("/auth/step-up/status", { params: { action } }),
+
+  // Email Verification endpoints
+  sendEmailOTP: (data) => api.post("/auth/send-email-otp", data),
+  verifyEmailOTP: (data) => api.post("/auth/verify-email-otp", data),
+  resendEmailOTP: (data) => api.post("/auth/resend-email-otp", data),
 };

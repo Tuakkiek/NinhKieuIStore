@@ -29,7 +29,7 @@ import {
   AlertDialogTrigger,
 } from "@/shared/ui/alert-dialog";
 import { ErrorMessage } from "@/shared/ui/ErrorMessage";
-import { useAuthStore } from "@/features/auth";
+import { useAuthStore, authAPI } from "@/features/auth";
 import { useNavigate } from "react-router-dom";
 import { userAPI } from "../api/account.api";
 import { orderAPI } from "@/features/orders";
@@ -175,7 +175,7 @@ const OrdersSection = () => {
   const [displayedOrders, setDisplayedOrders] = useState([]); // Đơn hiện trên UI
   const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(1);
-  const [totalOrders, setTotalOrders] = useState(0); // Tổng số đơn theo filter
+  const [, setTotalOrders] = useState(0); // Tổng số đơn theo filter
   const [hasMore, setHasMore] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
@@ -691,6 +691,13 @@ const ProfileForm = ({ user, onUpdate }) => {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  const [showVerifyDialog, setShowVerifyDialog] = useState(false);
+  const [verifyStep, setVerifyStep] = useState(1);
+  const [otpCode, setOtpCode] = useState("");
+  const [verifySession, setVerifySession] = useState(null);
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [verifyError, setVerifyError] = useState("");
+
   const handleChange = (e) => {
     setError("");
     setSuccess("");
@@ -750,14 +757,38 @@ const ProfileForm = ({ user, onUpdate }) => {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              value={formData.email}
-              onChange={handleChange}
-            />
+            <div className="flex items-center justify-between">
+              <Label htmlFor="email">Email</Label>
+              {user?.email && user?.email === formData.email && (
+                <Badge variant={user?.emailVerified ? "default" : "destructive"} className={user?.emailVerified ? "bg-green-500" : ""}>
+                  {user?.emailVerified ? "Đã xác thực" : "Chưa xác thực"}
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                value={formData.email}
+                onChange={handleChange}
+                className="flex-1"
+              />
+              {!user?.emailVerified && formData.email && formData.email === user?.email && (
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => {
+                    setVerifyStep(1);
+                    setOtpCode("");
+                    setVerifyError("");
+                    setShowVerifyDialog(true);
+                  }}
+                >
+                  Xác thực
+                </Button>
+              )}
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -774,6 +805,86 @@ const ProfileForm = ({ user, onUpdate }) => {
             {isLoading ? "Đang cập nhật..." : "Cập nhật thông tin"}
           </Button>
         </form>
+
+        <Dialog open={showVerifyDialog} onOpenChange={setShowVerifyDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Xác thực Email</DialogTitle>
+              <DialogDescription>
+                Hệ thống sẽ gửi một mã OTP gồm 6 chữ số đến <strong>{formData.email}</strong>.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="py-4 space-y-4">
+              {verifyError && <ErrorMessage message={verifyError} />}
+              
+              {verifyStep === 1 ? (
+                <div className="flex justify-center">
+                  <Button 
+                    type="button"
+                    onClick={async () => {
+                      setVerifyLoading(true);
+                      setVerifyError("");
+                      try {
+                        const res = await authAPI.sendEmailOTP({ email: formData.email });
+                        if (res.data?.success) {
+                          setVerifySession(res.data.data.sessionId);
+                          setVerifyStep(2);
+                        }
+                      } catch (err) {
+                        setVerifyError(err.response?.data?.message || "Lỗi gửi OTP");
+                      } finally {
+                        setVerifyLoading(false);
+                      }
+                    }} 
+                    disabled={verifyLoading} className="w-full"
+                  >
+                    {verifyLoading ? "Đang gửi..." : "Gửi mã OTP"}
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Nhập mã OTP</Label>
+                    <Input
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value)}
+                      placeholder="• • • • • •"
+                      className="text-center text-lg tracking-widest"
+                      maxLength={6}
+                    />
+                  </div>
+                  <Button 
+                    type="button"
+                    onClick={async () => {
+                      setVerifyLoading(true);
+                      setVerifyError("");
+                      try {
+                        const res = await authAPI.verifyEmailOTP({
+                          sessionId: verifySession,
+                          otp: otpCode,
+                        });
+                        if (res.data?.success) {
+                          setShowVerifyDialog(false);
+                          toast.success("Xác thực email thành công! 🎉");
+                          onUpdate();
+                        }
+                      } catch (err) {
+                        setVerifyError(err.response?.data?.message || "Mã không hợp lệ");
+                      } finally {
+                        setVerifyLoading(false);
+                      }
+                    }} 
+                    disabled={verifyLoading || otpCode.length !== 6} 
+                    className="w-full"
+                  >
+                    {verifyLoading ? "Đang xử lý..." : "Xác nhận"}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );
