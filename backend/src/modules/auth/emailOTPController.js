@@ -43,7 +43,7 @@ const mapVerifyError = (result = {}) => {
     return {
       status: 400,
       code: "EMAIL_OTP_INVALID",
-      message: `Mã OTP không dúng. Còn ${result.attemptsLeft || 0} l?n th?.`,
+      message: `Mã OTP không đúng. Còn ${result.attemptsLeft || 0} lần thử.`,
       data: { attemptsLeft: result.attemptsLeft || 0 },
     };
   }
@@ -53,7 +53,7 @@ const mapVerifyError = (result = {}) => {
       status: 429,
       code: "EMAIL_OTP_TOO_MANY_ATTEMPTS",
       message:
-        "Quá nhi?u l?n th? sai. Phiên OTP dã b? vô hi?u hóa. Vui lòng yêu c?u mã m?i.",
+        "Quá nhiều lần thử sai. Phiên OTP đã bị vô hiệu hóa. Vui lòng yêu cầu mã mới.",
     };
   }
 
@@ -65,14 +65,14 @@ const mapVerifyError = (result = {}) => {
       status: 404,
       code: "EMAIL_OTP_SESSION_NOT_FOUND",
       message:
-        "Phiên OTP không t?n t?i ho?c dã h?t h?n. Vui lòng yêu c?u mã m?i.",
+        "Phiên OTP không tồn tại hoặc đã hết hạn. Vui lòng yêu cầu mã mới.",
     };
   }
 
   return {
     status: 400,
     code: "EMAIL_OTP_VERIFY_FAILED",
-    message: "Xác th?c OTP th?t b?i. Vui lòng th? l?i.",
+    message: "Xác thực OTP thất bại. Vui lòng thử lại.",
   };
 };
 
@@ -97,7 +97,7 @@ const ensureEmailCanBeUsed = async ({ userId, email }) => {
       ok: false,
       status: 400,
       code: "EMAIL_OTP_ALREADY_VERIFIED",
-      message: "Email này dã du?c xác th?c tru?c dó",
+      message: "Email này đã được xác thực trước đó",
     };
   }
 
@@ -180,7 +180,7 @@ const sendEmailOTPByPurpose = async ({ req, res, purpose, successMessage }) => {
       return res.status(400).json({
         success: false,
         code: "EMAIL_OTP_EMAIL_REQUIRED",
-        message: "Vui lòng cung c?p d?a ch? email",
+        message: "Vui lòng cung cấp địa chỉ email",
       });
     }
 
@@ -189,7 +189,7 @@ const sendEmailOTPByPurpose = async ({ req, res, purpose, successMessage }) => {
       return res.status(400).json({
         success: false,
         code: "EMAIL_OTP_INVALID_EMAIL",
-        message: "Ð?a ch? email không h?p l?",
+        message: "Địa chỉ email không hợp lệ",
       });
     }
 
@@ -245,7 +245,7 @@ const sendEmailOTPByPurpose = async ({ req, res, purpose, successMessage }) => {
     return res.status(500).json({
       success: false,
       code: "EMAIL_OTP_SEND_FAILED",
-      message: error.message || "Không th? g?i mã OTP. Vui lòng th? l?i.",
+      message: error.message || "Không thể gửi mã OTP. Vui lòng thử lại.",
     });
   }
 };
@@ -255,7 +255,7 @@ export const sendEmailOTP = async (req, res) =>
     req,
     res,
     purpose: OTP_PURPOSES.EMAIL_VERIFICATION,
-    successMessage: "Mã OTP dã du?c g?i t?i email c?a b?n",
+    successMessage: "Mã OTP đã được gửi tới email của bạn",
   });
 
 export const addEmail = async (req, res) =>
@@ -263,7 +263,7 @@ export const addEmail = async (req, res) =>
     req,
     res,
     purpose: OTP_PURPOSES.ADD_EMAIL,
-    successMessage: "Mã OTP dã du?c g?i d? liên k?t email",
+    successMessage: "Mã OTP đã được gửi để liên kết email",
   });
 
 export const verifyEmailOTP = async (req, res) => {
@@ -275,7 +275,7 @@ export const verifyEmailOTP = async (req, res) => {
       return res.status(400).json({
         success: false,
         code: "EMAIL_OTP_MISSING_PARAMS",
-        message: "sessionId và otp là b?t bu?c",
+        message: "sessionId và otp là bắt buộc",
       });
     }
 
@@ -337,7 +337,7 @@ export const verifyEmailOTP = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Email dã du?c xác th?c thành công!",
+      message: "Email đã được xác thực thành công!",
       data: {
         emailVerified: true,
         email: verifyResult.record.target,
@@ -356,7 +356,7 @@ export const verifyEmailOTP = async (req, res) => {
     return res.status(500).json({
       success: false,
       code: "EMAIL_OTP_VERIFY_FAILED",
-      message: error.message || "Xác th?c OTP th?t b?i. Vui lòng th? l?i.",
+      message: error.message || "Xác thực OTP thất bại. Vui lòng thử lại.",
     });
   }
 };
@@ -370,7 +370,7 @@ export const resendEmailOTP = async (req, res) => {
       return res.status(400).json({
         success: false,
         code: "EMAIL_OTP_SESSION_REQUIRED",
-        message: "sessionId là b?t bu?c",
+        message: "sessionId là bắt buộc",
       });
     }
 
@@ -386,7 +386,7 @@ export const resendEmailOTP = async (req, res) => {
       return res.status(404).json({
         success: false,
         code: "EMAIL_OTP_SESSION_NOT_FOUND",
-        message: "Phiên OTP không t?n t?i. Vui lòng yêu c?u mã m?i.",
+        message: "Phiên OTP không tồn tại. Vui lòng yêu cầu mã mới.",
       });
     }
 
@@ -434,7 +434,7 @@ export const resendEmailOTP = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Mã OTP m?i dã du?c g?i",
+      message: "Mã OTP mới đã được gửi",
       data: {
         sessionId: newSessionId,
         maskedEmail: maskEmail(oldRecord.target),
@@ -461,7 +461,7 @@ export const resendEmailOTP = async (req, res) => {
     return res.status(500).json({
       success: false,
       code: "EMAIL_OTP_RESEND_FAILED",
-      message: error.message || "Không th? g?i l?i mã OTP.",
+      message: error.message || "Không thể gửi lại mã OTP.",
     });
   }
 };
