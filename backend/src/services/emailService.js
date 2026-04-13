@@ -8,6 +8,10 @@
  * ───────────────────────────────────────────────────────────────────
  */
 import nodemailer from "nodemailer";
+import dns from "dns";
+
+// Sửa lỗi ENETUNREACH khi nền tảng deploy ưu tiên IPv6 nhưng mạng IPv6 chưa được cấu hình
+dns.setDefaultResultOrder("ipv4first");
 
 // ────────────────────────────────────────────────────────────────
 //  Brand constants
