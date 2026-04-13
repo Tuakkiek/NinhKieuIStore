@@ -1,6 +1,13 @@
 import User from "./User.js";
 import AuthOTPToken from "./AuthOTPToken.js";
-import { classifySMTPError, getSMTPDiagnostic, sendOTPEmail } from "../../services/emailService.js";
+import PasswordResetToken from "./PasswordResetToken.js";
+import {
+  classifySMTPError,
+  getSMTPDiagnostic,
+  sendOTPEmail,
+} from "../../services/emailService.js";
+import { getFirebaseAdmin } from "../../lib/firebaseAdmin.js";
+import crypto from "crypto";
 import {
   OTP_CHANNELS,
   OTP_PURPOSES,
@@ -25,6 +32,38 @@ const RESEND_COOLDOWN_MS = 60 * 1000;
 const RESET_TOKEN_TTL_MINUTES = 10;
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const normalizeVietnamPhoneNumberToLocal = (raw = "") => {
+  const input = String(raw ?? "")
+    .trim()
+    .replace(/[^\d+]/g, "");
+
+  if (!input) return "";
+
+  if (input.startsWith("+84")) {
+    const remain = input.slice(3);
+    return remain ? `0${remain}` : "";
+  }
+
+  if (input.startsWith("84")) {
+    const remain = input.slice(2);
+    return remain ? `0${remain}` : "";
+  }
+
+  if (input.startsWith("0")) return input;
+
+  if (/^\d{9,10}$/.test(input)) return `0${input}`;
+
+  return input;
+};
+
+const normalizeFirebasePhoneToLocal = (phoneNumber = "") => {
+  const input = String(phoneNumber || "").trim();
+  if (!input) return "";
+  if (input.startsWith("+84")) return `0${input.slice(3)}`;
+  if (input.startsWith("84")) return `0${input.slice(2)}`;
+  return input;
+};
 
 const validatePassword = (password = "") => {
   if (password.length < 8) {
@@ -57,11 +96,15 @@ const mapForgotVerifyError = (result = {}) => {
     return {
       status: 429,
       code: "FORGOT_PASSWORD_OTP_TOO_MANY_ATTEMPTS",
-      message: "OTP dã b? khóa do nh?p sai quá nhi?u l?n. Vui lòng yêu c?u mã m?i.",
+      message:
+        "OTP dã b? khóa do nh?p sai quá nhi?u l?n. Vui lòng yêu c?u mã m?i.",
     };
   }
 
-  if (result.code === "OTP_EXPIRED" || result.code === "OTP_SESSION_NOT_FOUND") {
+  if (
+    result.code === "OTP_EXPIRED" ||
+    result.code === "OTP_SESSION_NOT_FOUND"
+  ) {
     return {
       status: 404,
       code: "FORGOT_PASSWORD_OTP_EXPIRED",
@@ -74,10 +117,6 @@ const mapForgotVerifyError = (result = {}) => {
     code: "FORGOT_PASSWORD_OTP_VERIFY_FAILED",
     message: "Không th? xác th?c OTP.",
   };
-};
-
-const sendSMSMock = async ({ phoneNumber, otp }) => {
-  console.warn(`[AuthRecovery][SMS-MOCK] OTP ${otp} sent to ${phoneNumber}`);
 };
 
 const issueForgotPasswordOTP = async ({ req, user, channel, target }) => {
@@ -137,8 +176,6 @@ const issueForgotPasswordOTP = async ({ req, user, channel, target }) => {
       ttlMinutes: OTP_TTL_MINUTES,
       type: "forgot_password",
     });
-  } else {
-    await sendSMSMock({ phoneNumber: target, otp });
   }
 
   return {
@@ -148,9 +185,9 @@ const issueForgotPasswordOTP = async ({ req, user, channel, target }) => {
       expiresAt,
       ttlMinutes: OTP_TTL_MINUTES,
       channel,
-      maskedContact: channel === OTP_CHANNELS.EMAIL ? maskEmail(target) : maskPhone(target),
-      delivery: channel === OTP_CHANNELS.EMAIL ? "EMAIL" : "SMS_MOCK",
-      ...(process.env.NODE_ENV !== "production" && channel === OTP_CHANNELS.SMS ? { devOTP: otp } : {}),
+      maskedContact:
+        channel === OTP_CHANNELS.EMAIL ? maskEmail(target) : maskPhone(target),
+      delivery: "EMAIL",
     },
   };
 };
@@ -210,7 +247,10 @@ export const forgotPasswordByEmail = async (req, res) => {
 
     const smtpFailure = classifySMTPError(error);
     if (smtpFailure.type !== "UNKNOWN") {
-      console.error("[AuthRecovery] forgotPasswordByEmail SMTP diagnostic:", getSMTPDiagnostic(error));
+      console.error(
+        "[AuthRecovery] forgotPasswordByEmail SMTP diagnostic:",
+        getSMTPDiagnostic(error),
+      );
       return res.status(smtpFailure.httpStatus).json({
         success: false,
         code: smtpFailure.appCode,
@@ -237,44 +277,33 @@ export const forgotPasswordByPhone = async (req, res) => {
       });
     }
 
-    const normalizedPhone = normalizePhone(phoneNumber);
+    const normalizedPhone = normalizeVietnamPhoneNumberToLocal(phoneNumber);
 
     const user = await User.findOne({ phoneNumber: normalizedPhone }).lean();
     if (!user) {
       return res.status(404).json({
         success: false,
         code: "FORGOT_PASSWORD_ACCOUNT_NOT_FOUND",
-        message: "Không tìm th?y tài kho?n tuong ?ng v?i s? di?n tho?i này",
-      });
-    }
-
-    const issued = await issueForgotPasswordOTP({
-      req,
-      user,
-      channel: OTP_CHANNELS.SMS,
-      target: normalizedPhone,
-    });
-
-    if (!issued.ok) {
-      return res.status(issued.status).json({
-        success: false,
-        code: issued.code,
-        message: issued.message,
-        retryAfterSeconds: issued.retryAfterSeconds,
+        message: "Không tìm thấy tài khoản tương ứng với số điện thoại này",
       });
     }
 
     return res.status(200).json({
       success: true,
-      message: "OTP SMS dã du?c t?o (mock)",
-      data: issued.data,
+      message: "OK",
+      data: {
+        channel: "FIREBASE_PHONE",
+        maskedContact: maskPhone(normalizedPhone),
+      },
     });
   } catch (error) {
     console.error("[AuthRecovery] forgotPasswordByPhone error:", error);
     return res.status(500).json({
       success: false,
       code: "FORGOT_PASSWORD_PHONE_FAILED",
-      message: error.message || "Không th? g?i OTP qua SMS.",
+      message:
+        error.message ||
+        "Không th? x? lý yêu c?u quên m?t kh?u qua s? di?n tho?i.",
     });
   }
 };
@@ -316,7 +345,9 @@ const verifyForgotPasswordOTP = async (req, res) => {
 
   const resetToken = createOpaqueToken(32);
   verifyResult.record.resetTokenHash = hashOpaqueToken(resetToken);
-  verifyResult.record.resetTokenExpiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MINUTES * 60 * 1000);
+  verifyResult.record.resetTokenExpiresAt = new Date(
+    Date.now() + RESET_TOKEN_TTL_MINUTES * 60 * 1000,
+  );
   await verifyResult.record.save();
 
   return res.status(200).json({
@@ -333,6 +364,87 @@ const verifyForgotPasswordOTP = async (req, res) => {
           : maskPhone(verifyResult.record.target),
     },
   });
+};
+
+const issueResetTokenFromFirebasePhone = async (req, res) => {
+  const { phoneNumber, firebaseIdToken } = req.body || {};
+
+  console.log("Incoming phone:", req.body.phoneNumber);
+  console.log("Firebase ID Token:", req.body.firebaseIdToken);
+
+  if (!phoneNumber || !firebaseIdToken) {
+    return res.status(400).json({
+      success: false,
+      code: "RESET_PASSWORD_MISSING_PARAMS",
+      message: "phoneNumber và firebaseIdToken là b?t bu?c",
+    });
+  }
+
+  try {
+    const admin = getFirebaseAdmin();
+    const decodedToken = await admin
+      .auth()
+      .verifyIdToken(String(firebaseIdToken));
+    console.log("Decoded token:", decodedToken);
+    console.log("Token phone:", decodedToken.phone_number);
+    const firebasePhone = normalizeFirebasePhoneToLocal(
+      decodedToken?.phone_number || "",
+    );
+    const requestedPhone = normalizeVietnamPhoneNumberToLocal(phoneNumber);
+
+    if (!firebasePhone || !requestedPhone || firebasePhone !== requestedPhone) {
+      return res.status(401).json({
+        success: false,
+        code: "RESET_PASSWORD_FIREBASE_PHONE_MISMATCH",
+        message: "Xác th?c s? di?n tho?i không h?p l?.",
+      });
+    }
+
+    const user = await User.findOne({ phoneNumber: requestedPhone }).lean();
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        code: "RESET_PASSWORD_USER_NOT_FOUND",
+        message: "Không tìm th?y ngu?i dùng",
+      });
+    }
+
+    const resetToken = createOpaqueToken(32);
+    const resetTokenHash = hashOpaqueToken(resetToken);
+    const resetTokenExpiresAt = new Date(
+      Date.now() + RESET_TOKEN_TTL_MINUTES * 60 * 1000,
+    );
+
+    await PasswordResetToken.create({
+      userId: user._id,
+      resetTokenHash,
+      expiresAt: resetTokenExpiresAt,
+      metadata: {
+        provider: "FIREBASE_PHONE",
+        phoneNumber: requestedPhone,
+      },
+      ...buildRequestMetadata(req),
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "OTP h?p l?. B?n có th? d?t l?i m?t kh?u m?i.",
+      data: {
+        step: "OTP_VERIFIED",
+        resetToken,
+        resetTokenExpiresAt,
+        channel: "FIREBASE_PHONE",
+        maskedContact: maskPhone(requestedPhone),
+      },
+    });
+  } catch (error) {
+    console.error("Firebase verify error:", error);
+    return res.status(401).json({
+      success: false,
+      code: "RESET_PASSWORD_FIREBASE_VERIFY_FAILED",
+      message: "Không th? xác th?c OTP. Vui lòng th? l?i.",
+    });
+  }
 };
 
 const applyNewPassword = async (req, res) => {
@@ -364,7 +476,17 @@ const applyNewPassword = async (req, res) => {
     resetTokenExpiresAt: { $gt: new Date() },
   }).sort({ createdAt: -1 });
 
-  if (!tokenRecord) {
+  const firebaseTokenRecord = tokenRecord
+    ? null
+    : await PasswordResetToken.findOne({
+        resetTokenHash,
+        usedAt: null,
+        expiresAt: { $gt: new Date() },
+      }).sort({ createdAt: -1 });
+
+  const effectiveUserId = tokenRecord?.userId || firebaseTokenRecord?.userId;
+
+  if (!effectiveUserId) {
     return res.status(400).json({
       success: false,
       code: "RESET_PASSWORD_TOKEN_INVALID_OR_EXPIRED",
@@ -372,7 +494,7 @@ const applyNewPassword = async (req, res) => {
     });
   }
 
-  const user = await User.findById(tokenRecord.userId).select("+password");
+  const user = await User.findById(effectiveUserId).select("+password");
   if (!user) {
     return res.status(404).json({
       success: false,
@@ -393,18 +515,24 @@ const applyNewPassword = async (req, res) => {
   user.password = String(newPassword);
   await user.save();
 
-  tokenRecord.status = OTP_STATUSES.USED;
-  tokenRecord.resetTokenHash = null;
-  tokenRecord.resetTokenExpiresAt = null;
-  tokenRecord.expiresAt = new Date();
-  await tokenRecord.save();
+  if (tokenRecord) {
+    tokenRecord.status = OTP_STATUSES.USED;
+    tokenRecord.resetTokenHash = null;
+    tokenRecord.resetTokenExpiresAt = null;
+    tokenRecord.expiresAt = new Date();
+    await tokenRecord.save();
+  }
+
+  if (firebaseTokenRecord) {
+    firebaseTokenRecord.usedAt = new Date();
+    await firebaseTokenRecord.save();
+  }
 
   await AuthOTPToken.updateMany(
     {
       userId: user._id,
       purpose: OTP_PURPOSES.FORGOT_PASSWORD,
       status: { $in: [OTP_STATUSES.PENDING, OTP_STATUSES.VERIFIED] },
-      _id: { $ne: tokenRecord._id },
     },
     {
       $set: { status: OTP_STATUSES.EXPIRED },
@@ -419,10 +547,21 @@ const applyNewPassword = async (req, res) => {
 
 export const resetPassword = async (req, res) => {
   try {
-    const { sessionId, otp, resetToken, newPassword } = req.body || {};
+    const {
+      sessionId,
+      otp,
+      resetToken,
+      newPassword,
+      phoneNumber,
+      firebaseIdToken,
+    } = req.body || {};
 
     if (sessionId && otp && !resetToken && !newPassword) {
       return verifyForgotPasswordOTP(req, res);
+    }
+
+    if (phoneNumber && firebaseIdToken && !resetToken && !newPassword) {
+      return issueResetTokenFromFirebasePhone(req, res);
     }
 
     if (resetToken && newPassword) {
@@ -432,7 +571,8 @@ export const resetPassword = async (req, res) => {
     return res.status(400).json({
       success: false,
       code: "RESET_PASSWORD_INVALID_PAYLOAD",
-      message: "Payload không h?p l?. Vui lòng g?i OTP ho?c resetToken + m?t kh?u m?i.",
+      message:
+        "Payload không h?p l?. Vui lòng g?i OTP ho?c resetToken + m?t kh?u m?i.",
     });
   } catch (error) {
     console.error("[AuthRecovery] resetPassword error:", error);
@@ -449,4 +589,3 @@ export default {
   forgotPasswordByPhone,
   resetPassword,
 };
-

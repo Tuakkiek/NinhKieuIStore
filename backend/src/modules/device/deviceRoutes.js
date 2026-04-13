@@ -49,6 +49,37 @@ router.post(
   controller.importDevices
 );
 
+// Assign IMEI/Serial to a specific order (post-payment / ready-to-ship)
+router.get(
+  "/imei-assign/orders",
+  authorize(AUTHZ_ACTIONS.DEVICE_READ, {
+    scopeMode: "branch",
+    requireActiveBranch: true,
+    resourceType: "DEVICE",
+  }),
+  controller.listEligibleOrdersForImeiAssignment
+);
+
+router.get(
+  "/imei-assign/orders/:id",
+  authorize(AUTHZ_ACTIONS.DEVICE_READ, {
+    scopeMode: "branch",
+    requireActiveBranch: true,
+    resourceType: "DEVICE",
+  }),
+  controller.getEligibleOrderForImeiAssignment
+);
+
+router.post(
+  "/imei-assign/assign",
+  authorize(AUTHZ_ACTIONS.DEVICE_WRITE, {
+    scopeMode: "branch",
+    requireActiveBranch: true,
+    resourceType: "DEVICE",
+  }),
+  controller.assignImeiToOrder
+);
+
 router.get(
   "/:id",
   authorize(AUTHZ_ACTIONS.DEVICE_READ, {

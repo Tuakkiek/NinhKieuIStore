@@ -18,6 +18,7 @@ const RegisterPage = () => {
   const { setLoading, setError, startOTPSession, clearOTPSession } = useAuthFlow();
 
   const [formData, setFormData] = useState({
+    fullName: "",
     phoneNumber: "",
     email: "",
     password: "",
@@ -39,12 +40,23 @@ const RegisterPage = () => {
 
   const validate = () => {
     const nextErrors = {};
+    const normalizedFullName = formData.fullName.trim();
+    const normalizedPhone = formData.phoneNumber.trim();
+    const normalizedEmail = formData.email.trim().toLowerCase();
 
-    if (!phoneRegex.test(formData.phoneNumber.trim())) {
+    if (!normalizedFullName) {
+      nextErrors.fullName = "Vui lòng nhập họ và tên";
+    } else if (normalizedFullName.length < 2) {
+      nextErrors.fullName = "Họ và tên phải có ít nhất 2 ký tự";
+    }
+
+    if (!normalizedPhone) {
+      nextErrors.phoneNumber = "Vui lòng nhập số điện thoại";
+    } else if (!phoneRegex.test(normalizedPhone)) {
       nextErrors.phoneNumber = "Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0";
     }
 
-    if (formData.email.trim() && !emailRegex.test(formData.email.trim().toLowerCase())) {
+    if (normalizedEmail && !emailRegex.test(normalizedEmail)) {
       nextErrors.email = "Email không hợp lệ";
     }
 
@@ -52,7 +64,9 @@ const RegisterPage = () => {
       nextErrors.password = "Mật khẩu chưa đủ điều kiện bảo mật";
     }
 
-    if (formData.confirmPassword !== formData.password) {
+    if (!formData.confirmPassword) {
+      nextErrors.confirmPassword = "Vui lòng nhập lại mật khẩu";
+    } else if (formData.confirmPassword !== formData.password) {
       nextErrors.confirmPassword = "Mật khẩu nhập lại không khớp";
     }
 
@@ -76,6 +90,7 @@ const RegisterPage = () => {
     event.preventDefault();
     if (!validate()) return;
 
+    const normalizedFullName = formData.fullName.trim();
     const normalizedPhone = formData.phoneNumber.trim();
     const normalizedEmail = formData.email.trim().toLowerCase();
 
@@ -84,8 +99,8 @@ const RegisterPage = () => {
     setError("");
 
     const registerResult = await register({
-      fullName: `Khách hàng ${normalizedPhone}`,
-      phoneNumber: normalizedPhone,
+      fullName: normalizedFullName,
+      phone: normalizedPhone,
       email: normalizedEmail || undefined,
       password: formData.password,
     });
@@ -152,7 +167,7 @@ const RegisterPage = () => {
   return (
     <AuthLayout
       title="Đăng ký tài khoản"
-      description="Đăng ký nhanh bằng số điện thoại. Email là tùy chọn."
+      description="Đăng ký tài khoản bằng họ và tên, số điện thoại và mật khẩu. Email là tùy chọn."
       footer={
         <p className="text-center text-sm text-slate-600">
           Đã có tài khoản?{" "}
@@ -164,6 +179,18 @@ const RegisterPage = () => {
     >
       <form className="space-y-4" onSubmit={handleSubmit}>
         {error ? <ErrorMessage message={error} /> : null}
+
+        <FormInput
+          label="Họ và tên"
+          name="fullName"
+          type="text"
+          autoComplete="name"
+          value={formData.fullName}
+          onChange={handleChange}
+          placeholder="Nhập họ và tên"
+          error={fieldErrors.fullName}
+          required
+        />
 
         <FormInput
           label="Số điện thoại"
@@ -186,7 +213,7 @@ const RegisterPage = () => {
           autoComplete="email"
           value={formData.email}
           onChange={handleChange}
-          placeholder="you@example.com"
+          placeholder="Nhập email (không bắt buộc)"
           error={fieldErrors.email}
           helperText={
             formData.email.trim()

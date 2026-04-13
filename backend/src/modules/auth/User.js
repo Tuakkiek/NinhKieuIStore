@@ -175,10 +175,10 @@ const userSchema = new mongoose.Schema(
 
     fullName: {
       type: String,
-      required: [true, "Vui long nhap ho ten"],
+      required: true,
       trim: true,
-      minlength: [2, "Ho ten phai co it nhat 2 ky tu"],
-      maxlength: [100, "Ho ten khong duoc vuot qua 100 ky tu"],
+      minlength: [2, "Họ tên phải có ít nhất 2 ký tự"],
+      maxlength: [100, "Họ tên không được vượt quá 100 ký tự"],
     },
 
     phoneNumber: {
@@ -289,6 +289,17 @@ const userSchema = new mongoose.Schema(
 
 userSchema.index({ "branchAssignments.storeId": 1 });
 userSchema.index({ systemRoles: 1 });
+
+userSchema.pre("validate", function fillLegacyFullName(next) {
+  if (!this.isNew && !String(this.fullName || "").trim()) {
+    const fallbackName = String(this.name || this.phoneNumber || "").trim();
+    if (fallbackName) {
+      this.fullName = fallbackName;
+    }
+  }
+
+  next();
+});
 
 userSchema.pre("save", async function hashPassword(next) {
   if (!this.isModified("password")) return next();

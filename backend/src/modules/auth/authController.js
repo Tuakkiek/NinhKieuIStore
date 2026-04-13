@@ -9,21 +9,23 @@ import { syncUserRoleAssignments } from "../../authz/roleAssignmentService.js";
 // ============================================
 // VALIDATION HELPERS
 // ============================================
+const normalizeString = (value) => String(value ?? "").trim();
+
 const validatePhoneNumber = (phoneNumber) => {
+  const normalizedPhoneNumber = normalizeString(phoneNumber);
   const phoneRegex = /^0\d{9}$/;
-  if (!phoneRegex.test(phoneNumber)) {
+  if (!phoneRegex.test(normalizedPhoneNumber)) {
     throw new Error("Số điện thoại phải có 10 chữ số và bắt đầu bằng số 0");
   }
 };
 
 const validateEmail = (email) => {
-  if (!email) return; // Email is optional
+  const normalizedEmail = normalizeString(email).toLowerCase();
+  if (!normalizedEmail) return; // Email is optional
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
-    throw new Error(
-      "Email không hợp lệ. Email phải có dạng: example@domain.com"
-    );
+  if (!emailRegex.test(normalizedEmail)) {
+    throw new Error("Email không hợp lệ. Email phải có dạng: example@domain.com");
   }
 };
 
@@ -38,10 +40,24 @@ const validatePassword = (password) => {
   const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
 
   if (!hasLowerCase || !hasUpperCase || !hasNumber || !hasSpecialChar) {
-    throw new Error(
-      "Mật khẩu phải bao gồm chữ thường (a-z), chữ hoa (A-Z), số (0-9) và ký tự đặc biệt (!@#$%...)"
-    );
+    throw new Error("Mật khẩu phải bao gồm chữ thường (a-z), chữ hoa (A-Z), số (0-9) và ký tự đặc biệt (!@#$%...)");
   }
+};
+
+const serializeAuthUser = (user) => {
+  if (!user) return null;
+
+  const rawUser = typeof user.toJSON === "function" ? user.toJSON() : { ...user };
+  delete rawUser.password;
+
+  const fullName = normalizeString(rawUser.fullName || rawUser.name || rawUser.phoneNumber);
+
+  return {
+    ...rawUser,
+    fullName: fullName || "Người dùng",
+    phoneNumber: normalizeString(rawUser.phoneNumber),
+    email: rawUser.email ? normalizeString(rawUser.email).toLowerCase() : rawUser.email,
+  };
 };
 
 const branchFromBody = (body = {}) => {
@@ -234,10 +250,14 @@ const buildEffectivePermissionsPayload = async (user, resolvedContext = null) =>
 // ============================================
 export const register = async (req, res) => {
   try {
-    const { fullName, phoneNumber, email, province, password, role } = req.body;
+    const { fullName, phone, phoneNumber, email, province, password, role } = req.body;
+    const normalizedFullName = normalizeString(fullName);
+    const normalizedPhone = normalizeString(phone || phoneNumber);
+    const normalizedEmail = normalizeString(email).toLowerCase();
+    const normalizedProvince = normalizeString(province);
 
     // Validate required fields
-    if (!fullName || !phoneNumber || !password) {
+    if (!normalizedFullName || !normalizedPhone || !password) {
       return res.status(400).json({
         success: false,
         message: "Vui lòng điền đầy đủ thông tin bắt buộc",
@@ -245,7 +265,7 @@ export const register = async (req, res) => {
     }
 
     // Validate full name
-    if (fullName.trim().length < 2) {
+    if (normalizedFullName.length < 2) {
       return res.status(400).json({
         success: false,
         message: "Họ tên phải có ít nhất 2 ký tự",
@@ -253,18 +273,18 @@ export const register = async (req, res) => {
     }
 
     // Validate phone number
-    validatePhoneNumber(phoneNumber);
+    validatePhoneNumber(normalizedPhone);
 
     // Validate email if provided
-    if (email) {
-      validateEmail(email);
+    if (normalizedEmail) {
+      validateEmail(normalizedEmail);
     }
 
     // Validate password
     validatePassword(password);
 
     // Check if phone number already exists
-    const existingUserByPhone = await User.findOne({ phoneNumber });
+    const existingUserByPhone = await User.findOne({ phoneNumber: normalizedPhone });
     if (existingUserByPhone) {
       return res.status(400).json({
         success: false,
@@ -273,8 +293,8 @@ export const register = async (req, res) => {
     }
 
     // Check if email already exists (if provided)
-    if (email) {
-      const existingUserByEmail = await User.findOne({ email });
+    if (normalizedEmail) {
+      const existingUserByEmail = await User.findOne({ email: normalizedEmail });
       if (existingUserByEmail) {
         return res.status(400).json({
           success: false,
@@ -286,10 +306,10 @@ export const register = async (req, res) => {
     // Create user with CUSTOMER role by default (unless specified by admin)
     const normalizedRole = normalizeRoleKey(role || "CUSTOMER");
     const user = await User.create({
-      fullName: fullName.trim(),
-      phoneNumber,
-      email: email || undefined,
-      province,
+      fullName: normalizedFullName,
+      phoneNumber: normalizedPhone,
+      email: normalizedEmail || undefined,
+      province: normalizedProvince || undefined,
       password,
       role: normalizedRole,
     });
@@ -305,7 +325,7 @@ export const register = async (req, res) => {
     res.status(201).json({
       success: true,
       message: "Đăng ký thành công",
-      data: { user },
+      data: { user: serializeAuthUser(user) },
     });
   } catch (error) {
     console.error("Register error:", error);
@@ -321,10 +341,11 @@ export const register = async (req, res) => {
 // ============================================
 export const login = async (req, res) => {
   try {
-    const { phoneNumber, password } = req.body;
+    const { phone, phoneNumber, password } = req.body;
+    const normalizedPhone = normalizeString(phone || phoneNumber);
 
     // Validate input
-    if (!phoneNumber || !password) {
+    if (!normalizedPhone || !password) {
       return res.status(400).json({
         success: false,
         message: "Vui lòng nhập số điện thoại và mật khẩu",
@@ -335,7 +356,7 @@ export const login = async (req, res) => {
     // Tài khoản cũ có thể có format khác (ví dụ: 8 số, 11 số, không bắt đầu bằng 0...)
 
     // Find user - tìm bằng phoneNumber trực tiếp, không kiểm tra format
-    const user = await User.findOne({ phoneNumber: String(phoneNumber).trim() }).select("+password");
+    const user = await User.findOne({ phoneNumber: normalizedPhone }).select("+password");
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -377,15 +398,7 @@ export const login = async (req, res) => {
       success: true,
       message: "Đăng nhập thành công",
       data: {
-        user: {
-          _id: user._id,
-          fullName: user.fullName,
-          phoneNumber: user.phoneNumber,
-          email: user.email,
-          role: user.role,
-          province: user.province,
-          avatar: user.avatar,
-        },
+        user: serializeAuthUser(user),
         authz: authorization,
         authorization,
         token,
@@ -438,7 +451,7 @@ export const getCurrentUser = async (req, res) => {
     res.json({
       success: true,
       data: {
-        user,
+        user: serializeAuthUser(user),
         authz: authorization,
         authorization,
       },
@@ -531,7 +544,7 @@ export const updateAvatar = async (req, res) => {
     res.json({
       success: true,
       message: "Cập nhật ảnh đại diện thành công",
-      data: { user },
+      data: { user: serializeAuthUser(user) },
     });
   } catch (error) {
     console.error("Update avatar error:", error);
@@ -555,24 +568,25 @@ const buildCustomerDefaultPassword = (fullName, phoneNumber) => {
 
 export const checkCustomerByPhone = async (req, res) => {
   try {
-    const { phoneNumber } = req.query;
+    const { phoneNumber, phone } = req.query;
+    const normalizedPhone = normalizeString(phone || phoneNumber);
 
-    if (!phoneNumber) {
+    if (!normalizedPhone) {
       return res.status(400).json({
         success: false,
-        message: "Phone number required",
+        message: "Vui lòng cung cấp số điện thoại",
       });
     }
 
     const user = await User.findOne({
-      phoneNumber: phoneNumber.trim(),
+      phoneNumber: normalizedPhone,
       role: "CUSTOMER",
-    }).select("_id fullName email phoneNumber");
+    }).select("_id fullName name email phoneNumber");
 
     res.json({
       success: true,
       exists: !!user,
-      customer: user || null,
+      customer: serializeAuthUser(user),
     });
   } catch (error) {
     res.status(500).json({
@@ -584,14 +598,21 @@ export const checkCustomerByPhone = async (req, res) => {
 
 export const quickRegisterCustomer = async (req, res) => {
   try {
-    const { fullName, phoneNumber } = req.body;
-    const normalizedName = fullName?.trim();
-    const normalizedPhone = phoneNumber?.trim();
+    const { fullName, phone, phoneNumber } = req.body;
+    const normalizedName = normalizeString(fullName);
+    const normalizedPhone = normalizeString(phone || phoneNumber);
 
     if (!normalizedName || !normalizedPhone) {
       return res.status(400).json({
         success: false,
-        message: "Full name and phone number required",
+        message: "Vui lòng nhập họ và tên cùng số điện thoại",
+      });
+    }
+
+    if (normalizedName.length < 2) {
+      return res.status(400).json({
+        success: false,
+        message: "Họ tên phải có ít nhất 2 ký tự",
       });
     }
 
@@ -628,11 +649,7 @@ export const quickRegisterCustomer = async (req, res) => {
     res.status(201).json({
       success: true,
       message: "Customer account created",
-      customer: {
-        _id: user._id,
-        fullName: user.fullName,
-        phoneNumber: user.phoneNumber,
-      },
+      customer: serializeAuthUser(user),
       temporaryPassword: generatedPassword,
     });
   } catch (error) {

@@ -133,7 +133,7 @@ export const classifySMTPError = (error) => {
       type: "CONFIG",
       httpStatus: 503,
       appCode: "EMAIL_SERVICE_UNAVAILABLE",
-      message: "Dich vu gui email chua duoc cau hinh.",
+      message: "Dịch vụ gửi email chưa được cấu hình.",
     };
   }
 
@@ -142,7 +142,7 @@ export const classifySMTPError = (error) => {
       type: "TIMEOUT",
       httpStatus: 504,
       appCode: "EMAIL_SERVICE_TIMEOUT",
-      message: "Ket noi may chu email bi timeout. Vui long thu lai sau it phut.",
+      message: "Kết nối máy chủ email bị timeout. Vui lòng thử lại sau ít phút.",
     };
   }
 
@@ -151,7 +151,7 @@ export const classifySMTPError = (error) => {
       type: "NETWORK",
       httpStatus: 503,
       appCode: "EMAIL_SERVICE_NETWORK_ERROR",
-      message: "Khong the ket noi toi may chu email o moi truong hien tai.",
+      message: "Không thể kết nối tới máy chủ email ở môi trường hiện tại.",
     };
   }
 
@@ -160,7 +160,7 @@ export const classifySMTPError = (error) => {
       type: "AUTH",
       httpStatus: 503,
       appCode: "EMAIL_SERVICE_AUTH_FAILED",
-      message: "Xac thuc SMTP that bai. Vui long kiem tra tai khoan gui email.",
+      message: "Xác thực SMTP thất bại. Vui lòng kiểm tra tài khoản gửi email.",
     };
   }
 
@@ -168,7 +168,7 @@ export const classifySMTPError = (error) => {
     type: "UNKNOWN",
     httpStatus: 500,
     appCode: "EMAIL_SERVICE_SEND_FAILED",
-    message: "Khong the gui email OTP. Vui long thu lai.",
+    message: "Không thể gửi email OTP. Vui lòng thử lại.",
   };
 };
 
@@ -208,10 +208,10 @@ const emailLayout = ({ title, preheader = "", body }) => `
           <tr>
             <td style="background:#f9f9fb;padding:20px 40px;border-top:1px solid #eee;text-align:center;">
               <p style="color:#aaa;font-size:12px;margin:0;">
-                © ${new Date().getFullYear()} ${BRAND_NAME}. Moi email tu chung toi deu co the bo qua neu ban khong yeu cau.
+                © ${new Date().getFullYear()} ${BRAND_NAME}. Mọi email từ chúng tôi đều có thể bỏ qua nếu bạn không yêu cầu.
               </p>
               <p style="color:#aaa;font-size:12px;margin:6px 0 0;">
-                Lien he ho tro: <a href="mailto:${SUPPORT_EMAIL}" style="color:${BRAND_ACCENT};">${SUPPORT_EMAIL}</a>
+                Liên hệ hỗ trợ: <a href="mailto:${SUPPORT_EMAIL}" style="color:${BRAND_ACCENT};">${SUPPORT_EMAIL}</a>
               </p>
             </td>
           </tr>
@@ -241,39 +241,39 @@ export const sendOTPEmail = async ({ to, otp, ttlMinutes = 10, type = "step_up",
   const isForgotPassword = type === "forgot_password";
 
   const subjectMap = {
-    step_up: `[${BRAND_NAME}] Ma OTP xac nhan thao tac bao mat`,
-    email_verification: `[${BRAND_NAME}] Xac thuc dia chi email cua ban`,
-    forgot_password: `[${BRAND_NAME}] Ma OTP dat lai mat khau`,
+    step_up: `[${BRAND_NAME}] Mã OTP xác nhận thao tác bảo mật`,
+    email_verification: `[${BRAND_NAME}] Xác thực địa chỉ email của bạn`,
+    forgot_password: `[${BRAND_NAME}] Mã OTP đặt lại mật khẩu`,
   };
 
   const subject = subjectMap[type] || subjectMap.step_up;
   const heading = isVerification
-    ? "Xac thuc email"
+    ? "Xác thực email"
     : isForgotPassword
-      ? "Dat lai mat khau"
-      : "Xac nhan thao tac bao mat";
+      ? "Đặt lại mật khẩu"
+      : "Xác nhận thao tác bảo mật";
   const description = isVerification
-    ? "Ban vua dang ky tai khoan tai <strong>SmartMobile Store</strong>. Vui long nhap ma OTP ben duoi de xac thuc dia chi email cua ban."
+    ? "Bạn vừa đăng ký tài khoản tại <strong>SmartMobile Store</strong>. Vui lòng nhập mã OTP bên dưới để xác thực địa chỉ email của bạn."
     : isForgotPassword
-      ? "Ban vua yeu cau dat lai mat khau. Vui long nhap ma OTP ben duoi de tiep tuc doi mat khau."
-      : `Ban vua yeu cau thuc hien mot thao tac can xac minh danh tinh bo sung${action ? ` (<code>${action}</code>)` : ""}.`;
+      ? "Bạn vừa yêu cầu đặt lại mật khẩu. Vui lòng nhập mã OTP bên dưới để tiếp tục đổi mật khẩu."
+      : `Bạn vừa yêu cầu thực hiện một thao tác cần xác minh danh tính bổ sung${action ? ` (<code>${action}</code>)` : ""}.`;
 
   const html = emailLayout({
     title: subject,
-    preheader: `Ma OTP cua ban: ${otp} - co hieu luc trong ${ttlMinutes} phut`,
+    preheader: `Mã OTP của bạn: ${otp} - có hiệu lực trong ${ttlMinutes} phút`,
     body: `
       <h2 style="color:${BRAND_COLOR};margin:0 0 12px;font-size:20px;">${heading}</h2>
       <p style="color:#555;font-size:15px;line-height:1.6;margin:0 0 28px;">${description}</p>
       <div style="background:#f5f5f8;border-radius:10px;padding:28px;text-align:center;margin-bottom:28px;border:1px solid #e8e8ef;">
-        <p style="font-size:13px;color:#888;margin:0 0 10px;text-transform:uppercase;letter-spacing:1px;">Ma OTP cua ban</p>
+        <p style="font-size:13px;color:#888;margin:0 0 10px;text-transform:uppercase;letter-spacing:1px;">Mã OTP của bạn</p>
         <p style="font-size:42px;font-weight:800;letter-spacing:12px;color:${BRAND_COLOR};margin:0;font-family:'Courier New',monospace;">${otp}</p>
       </div>
       <div style="background:#fff8e1;border-left:4px solid #ffc107;border-radius:4px;padding:14px 18px;margin-bottom:20px;">
         <p style="color:#856404;font-size:14px;margin:0;">
-          Ma co hieu luc trong <strong>${ttlMinutes} phut</strong>. Khong chia se ma nay voi bat ky ai.
+          Mã có hiệu lực trong <strong>${ttlMinutes} phút</strong>. Không chia sẻ mã này với bất kỳ ai.
         </p>
       </div>
-      <p style="color:#bbb;font-size:12px;margin:0;">Neu ban khong thuc hien yeu cau nay, hay bo qua email nay hoac lien he bo phan ho tro.</p>
+      <p style="color:#bbb;font-size:12px;margin:0;">Nếu bạn không thực hiện yêu cầu này, hãy bỏ qua email này hoặc liên hệ bộ phận hỗ trợ.</p>
     `,
   });
 
@@ -284,20 +284,20 @@ export const sendOTPEmail = async ({ to, otp, ttlMinutes = 10, type = "step_up",
 export const sendWelcomeEmail = async ({ to, fullName }) => {
   if (!to) throw new Error("[EmailService] sendWelcomeEmail: recipient email required");
 
-  const subject = `Chao mung ban den voi ${BRAND_NAME}!`;
-  const firstName = fullName ? fullName.split(" ").pop() : "ban";
+  const subject = `Chào mừng bạn đến với ${BRAND_NAME}!`;
+  const firstName = fullName ? fullName.split(" ").pop() : "bạn";
 
   const html = emailLayout({
     title: subject,
-    preheader: "Tai khoan cua ban da duoc xac thuc thanh cong",
+    preheader: "Tài khoản của bạn đã được xác thực thành công",
     body: `
-      <h2 style="color:${BRAND_COLOR};margin:0 0 12px;font-size:22px;">Chao mung ${firstName}!</h2>
+      <h2 style="color:${BRAND_COLOR};margin:0 0 12px;font-size:22px;">Chào mừng ${firstName}!</h2>
       <p style="color:#555;font-size:15px;line-height:1.6;margin:0 0 20px;">
-        Tai khoan cua ban tai <strong>${BRAND_NAME}</strong> da duoc xac thuc thanh cong.
+        Tài khoản của bạn tại <strong>${BRAND_NAME}</strong> đã được xác thực thành công.
       </p>
       <div style="text-align:center;margin:28px 0;">
         <a href="${readEnv("CLIENT_URL", "https://www.canthoistore.io.vn")}" style="background:${BRAND_ACCENT};color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:15px;font-weight:600;display:inline-block;">
-          Kham pha san pham
+          Khám phá sản phẩm
         </a>
       </div>
     `,

@@ -20,6 +20,17 @@ const normalizeAllowedBranchIds = (authz) => {
 
 const getAuthorizationPayload = (payload = {}) => payload?.authorization || payload?.authz || null;
 
+const normalizeAuthUser = (user) => {
+  if (!user) return null;
+
+  const fullName = String(user?.fullName || user?.name || user?.phoneNumber || "").trim();
+
+  return {
+    ...user,
+    fullName: fullName || "Người dùng",
+  };
+};
+
 const isGlobalAdminContext = (user, authz) =>
   isGlobalAdminAuthorization({ user, authorization: authz });
 
@@ -116,17 +127,18 @@ export const useAuthStore = create(
         set({ isLoading: true, error: null });
         try {
           const response = await authAPI.login(credentials);
-          const { user, token } = response.data.data;
+          const normalizedUser = normalizeAuthUser(response.data.data?.user);
+          const { token } = response.data.data;
           const authorization = getAuthorizationPayload(response.data.data);
 
           const activeBranchId = resolveActiveBranchId({
-            user,
+            user: normalizedUser,
             authz: authorization,
             currentActiveBranchId: null,
           });
 
           set({
-            user,
+            user: normalizedUser,
             token,
             isAuthenticated: true,
             isLoading: false,
@@ -146,7 +158,7 @@ export const useAuthStore = create(
 
           return { success: true };
         } catch (error) {
-          const message = error.response?.data?.message || "Dang nhap that bai";
+          const message = error.response?.data?.message || "Đăng nhập thất bại";
           set({
             error: message,
             isLoading: false,
@@ -163,7 +175,7 @@ export const useAuthStore = create(
           set({ isLoading: false });
           return { success: true };
         } catch (error) {
-          const message = error.response?.data?.message || "Dang ky that bai";
+          const message = error.response?.data?.message || "Đăng ký thất bại";
           set({ error: message, isLoading: false });
           return { success: false, message };
         }
@@ -199,17 +211,17 @@ export const useAuthStore = create(
 
         try {
           const response = await authAPI.getCurrentUser();
-          const { user } = response.data.data;
+          const normalizedUser = normalizeAuthUser(response.data.data?.user);
           const authorization = getAuthorizationPayload(response.data.data);
 
           const activeBranchId = resolveActiveBranchId({
-            user,
+            user: normalizedUser,
             authz: authorization,
             currentActiveBranchId: get().activeBranchId,
           });
 
           set({
-            user,
+            user: normalizedUser,
             isAuthenticated: true,
             activeBranchId,
             authz: authorization || get().authorization || get().authz,
@@ -324,7 +336,7 @@ export const useAuthStore = create(
           set({ isLoading: false });
           return { success: true };
         } catch (error) {
-          const message = error.response?.data?.message || "Doi mat khau that bai";
+          const message = error.response?.data?.message || "Đổi mật khẩu thất bại";
           set({ error: message, isLoading: false });
           return { success: false, message };
         }
@@ -437,6 +449,17 @@ export const useAuthStore = create(
     }),
     {
       name: "auth-storage",
+      merge: (persistedState, currentState) => {
+        const mergedState = {
+          ...currentState,
+          ...(persistedState || {}),
+        };
+
+        return {
+          ...mergedState,
+          user: normalizeAuthUser(mergedState.user),
+        };
+      },
       onRehydrateStorage: () => (state, error) => {
         if (error) {
           console.error("auth-storage rehydrate failed:", error);

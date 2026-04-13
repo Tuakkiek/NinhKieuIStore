@@ -22,7 +22,11 @@ export const buildError = (message, status = 400, code = "DEVICE_VALIDATION_ERRO
 export const getActorName = (user = {}) =>
   user?.fullName?.trim() || user?.name?.trim() || user?.email?.trim() || "System";
 
-const ensureSparseUniqueness = async ({ imeiNormalized, serialNumberNormalized, session }) => {
+export const ensureSparseUniqueness = async ({
+  imeiNormalized,
+  serialNumberNormalized,
+  session,
+} = {}) => {
   const orConditions = [];
   if (imeiNormalized) orConditions.push({ imeiNormalized });
   if (serialNumberNormalized) orConditions.push({ serialNumberNormalized });
@@ -105,6 +109,10 @@ const normalizeSerializedUnit = (unit = {}) => {
     serialNumberNormalized,
     lookupKeys: getNormalizedLookupKeys({ imei, serialNumber }),
   };
+};
+
+export const normalizeSerializedUnitForPersistence = (unit = {}) => {
+  return normalizeSerializedUnit(unit);
 };
 
 export const registerSerializedUnits = async ({
@@ -442,6 +450,8 @@ export default {
   createLifecycleEvent,
   getActorName,
   getPublicWarrantyLookup,
+  ensureSparseUniqueness,
+  normalizeSerializedUnitForPersistence,
   registerSerializedUnits,
   releaseOrderDevices,
   resolveSerializedItemFlags,

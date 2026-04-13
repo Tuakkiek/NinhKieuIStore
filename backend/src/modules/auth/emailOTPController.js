@@ -8,7 +8,12 @@
  */
 import User from "./User.js";
 import AuthOTPToken from "./AuthOTPToken.js";
-import { classifySMTPError, getSMTPDiagnostic, sendOTPEmail, sendWelcomeEmail } from "../../services/emailService.js";
+import {
+  classifySMTPError,
+  getSMTPDiagnostic,
+  sendOTPEmail,
+  sendWelcomeEmail,
+} from "../../services/emailService.js";
 import {
   OTP_CHANNELS,
   OTP_PURPOSES,
@@ -28,7 +33,10 @@ const MAX_OTP_ATTEMPTS = 5;
 const RESEND_COOLDOWN_MS = 60 * 1000;
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const EMAIL_PURPOSES = [OTP_PURPOSES.EMAIL_VERIFICATION, OTP_PURPOSES.ADD_EMAIL];
+const EMAIL_PURPOSES = [
+  OTP_PURPOSES.EMAIL_VERIFICATION,
+  OTP_PURPOSES.ADD_EMAIL,
+];
 
 const mapVerifyError = (result = {}) => {
   if (result.code === "OTP_INVALID") {
@@ -44,15 +52,20 @@ const mapVerifyError = (result = {}) => {
     return {
       status: 429,
       code: "EMAIL_OTP_TOO_MANY_ATTEMPTS",
-      message: "Quá nhi?u l?n th? sai. Phiên OTP dã b? vô hi?u hóa. Vui lòng yêu c?u mã m?i.",
+      message:
+        "Quá nhi?u l?n th? sai. Phiên OTP dã b? vô hi?u hóa. Vui lòng yêu c?u mã m?i.",
     };
   }
 
-  if (result.code === "OTP_EXPIRED" || result.code === "OTP_SESSION_NOT_FOUND") {
+  if (
+    result.code === "OTP_EXPIRED" ||
+    result.code === "OTP_SESSION_NOT_FOUND"
+  ) {
     return {
       status: 404,
       code: "EMAIL_OTP_SESSION_NOT_FOUND",
-      message: "Phiên OTP không t?n t?i ho?c dã h?t h?n. Vui lòng yêu c?u mã m?i.",
+      message:
+        "Phiên OTP không t?n t?i ho?c dã h?t h?n. Vui lòng yêu c?u mã m?i.",
     };
   }
 
@@ -74,7 +87,7 @@ const ensureEmailCanBeUsed = async ({ userId, email }) => {
       ok: false,
       status: 409,
       code: "EMAIL_OTP_EMAIL_TAKEN",
-      message: "Email này dã du?c s? d?ng b?i tài kho?n khác",
+      message: "Email này đã được sử dụng bởi tài khoản khác",
     };
   }
 
@@ -180,7 +193,10 @@ const sendEmailOTPByPurpose = async ({ req, res, purpose, successMessage }) => {
       });
     }
 
-    const eligibility = await ensureEmailCanBeUsed({ userId, email: normalizedEmail });
+    const eligibility = await ensureEmailCanBeUsed({
+      userId,
+      email: normalizedEmail,
+    });
     if (!eligibility.ok) {
       return res.status(eligibility.status).json({
         success: false,
@@ -215,7 +231,10 @@ const sendEmailOTPByPurpose = async ({ req, res, purpose, successMessage }) => {
 
     const smtpFailure = classifySMTPError(error);
     if (smtpFailure.type !== "UNKNOWN") {
-      console.error("[EmailOTP] send SMTP diagnostic:", getSMTPDiagnostic(error));
+      console.error(
+        "[EmailOTP] send SMTP diagnostic:",
+        getSMTPDiagnostic(error),
+      );
       return res.status(smtpFailure.httpStatus).json({
         success: false,
         code: smtpFailure.appCode,
@@ -310,7 +329,10 @@ export const verifyEmailOTP = async (req, res) => {
       to: verifyResult.record.target,
       fullName: updatedUser?.fullName || "",
     }).catch((err) => {
-      console.warn("[EmailOTP] Welcome email failed (non-critical):", err.message);
+      console.warn(
+        "[EmailOTP] Welcome email failed (non-critical):",
+        err.message,
+      );
     });
 
     return res.status(200).json({
@@ -385,7 +407,11 @@ export const resendEmailOTP = async (req, res) => {
     oldRecord.status = OTP_STATUSES.EXPIRED;
     await oldRecord.save();
 
-    const { otp, sessionId: newSessionId, expiresAt } = await createOTPSession({
+    const {
+      otp,
+      sessionId: newSessionId,
+      expiresAt,
+    } = await createOTPSession({
       Model: AuthOTPToken,
       payload: {
         userId,
@@ -421,7 +447,10 @@ export const resendEmailOTP = async (req, res) => {
 
     const smtpFailure = classifySMTPError(error);
     if (smtpFailure.type !== "UNKNOWN") {
-      console.error("[EmailOTP] resendEmailOTP SMTP diagnostic:", getSMTPDiagnostic(error));
+      console.error(
+        "[EmailOTP] resendEmailOTP SMTP diagnostic:",
+        getSMTPDiagnostic(error),
+      );
       return res.status(smtpFailure.httpStatus).json({
         success: false,
         code: smtpFailure.appCode,

@@ -71,3 +71,14 @@
     border-color: hsl(var(--border));
   }
 }
+
+/* reCAPTCHA v2 invisible badge: keep it from overlapping auth flows on short viewports */
+.grecaptcha-badge {
+  position: fixed !important;
+  left: 12px !important;
+  right: auto !important;
+  bottom: 12px !important;
+  transform: scale(0.9);
+  transform-origin: 0 100%;
+  z-index: 50;
+}

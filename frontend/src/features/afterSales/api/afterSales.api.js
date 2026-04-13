@@ -16,6 +16,11 @@ export const afterSalesAPI = {
   getAvailableDevices: (params = {}) => api.get("/devices/available", { params }),
   registerDevice: (data) => api.post("/devices/register", data),
   importDevices: (data) => api.post("/devices/import", data),
+  listEligibleOrdersForImeiAssignment: (params = {}) =>
+    api.get("/devices/imei-assign/orders", { params }),
+  getEligibleOrderForImeiAssignment: (orderId) =>
+    api.get(`/devices/imei-assign/orders/${orderId}`),
+  assignImeiToOrder: (data) => api.post("/devices/imei-assign/assign", data),
   updateDeviceServiceState: (id, data) =>
     api.patch(`/devices/${id}/service-state`, data),
   listWarranties: (params = {}) => api.get("/warranty", { params }),

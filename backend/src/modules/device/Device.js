@@ -127,6 +127,17 @@ const deviceSchema = new mongoose.Schema(
       trim: true,
     },
     lookupKeys: [{ type: String, trim: true }],
+    // Assignment context (IMEI/Serial is now typically captured at fulfillment time)
+    orderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Order",
+    },
+    orderItemId: {
+      type: mongoose.Schema.Types.ObjectId,
+    },
+    assignedAt: {
+      type: Date,
+    },
     inventoryState: {
       type: String,
       enum: Object.values(INVENTORY_STATES),
@@ -167,6 +178,7 @@ const hasSingleFieldIndex = (fieldName) =>
 deviceSchema.index({ storeId: 1, variantSku: 1, inventoryState: 1 });
 deviceSchema.index({ storeId: 1, warehouseLocationId: 1 });
 deviceSchema.index({ lookupKeys: 1 });
+deviceSchema.index({ orderId: 1, orderItemId: 1, assignedAt: -1 });
 if (!hasSingleFieldIndex("imeiNormalized")) {
   deviceSchema.index({ imeiNormalized: 1 }, { unique: true, sparse: true });
 }

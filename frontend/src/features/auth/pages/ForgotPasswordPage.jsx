@@ -1,12 +1,14 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { Button } from "@/shared/ui/button";
 import { ErrorMessage } from "@/shared/ui/ErrorMessage";
 import AuthLayout from "../components/AuthLayout";
 import FormInput from "../components/FormInput";
 import OTPInput from "../components/OTPInput";
 import { authAPI } from "../api/auth.api";
+import { auth } from "@/shared/lib/firebase";
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
@@ -18,28 +20,42 @@ const passwordPolicy = (password = "") => ({
   special: /[^A-Za-z0-9]/.test(password),
 });
 
-const formatCountdown = (seconds) => {
-  const safe = Math.max(0, Number(seconds) || 0);
-  const minutes = String(Math.floor(safe / 60)).padStart(2, "0");
-  const remain = String(safe % 60).padStart(2, "0");
-  return `${minutes}:${remain}`;
+const normalizeVietnamPhoneNumberToE164 = (raw) => {
+  const input = String(raw ?? "")
+    .trim()
+    .replace(/[^\d+]/g, "");
+
+  if (!input) return "";
+
+  if (input.startsWith("+")) return input;
+  if (input.startsWith("84")) return `+${input}`;
+  if (input.startsWith("0")) return `+84${input.slice(1)}`;
+  if (/^\d{9,10}$/.test(input)) return `+84${input}`;
+  return input;
 };
 
-const mapOTPError = (error) => {
-  const code = error?.response?.data?.code;
-  if (code === "FORGOT_PASSWORD_OTP_INVALID") return "OTP không đúng.";
-  if (code === "FORGOT_PASSWORD_OTP_EXPIRED") return "OTP đã hết hạn. Vui lòng gửi lại mã mới.";
-  if (code === "FORGOT_PASSWORD_OTP_TOO_MANY_ATTEMPTS") return "Bạn đã nhập sai quá nhiều lần. Vui lòng yêu cầu OTP mới.";
-  return error?.response?.data?.message || "Không thể xác thực OTP";
+const mapFirebaseError = (error) => {
+  const code = String(error?.code || "");
+  if (code === "auth/invalid-phone-number") return "Số điện thoại không hợp lệ.";
+  if (code === "auth/too-many-requests") return "Bạn thao tác quá nhanh. Vui lòng thử lại sau.";
+  if (code === "auth/invalid-verification-code") return "OTP không đúng.";
+  if (code === "auth/code-expired") return "OTP đã hết hạn. Vui lòng gửi lại.";
+  if (code === "auth/captcha-check-failed") return "Không thể xác minh reCAPTCHA. Vui lòng thử lại.";
+  if (code === "auth/invalid-app-credential") return "Không thể xác minh reCAPTCHA. Vui lòng thử lại.";
+  if (code === "auth/recaptcha-not-enabled") return "Phone OTP chưa được bật trên Firebase Auth.";
+  if (code === "auth/operation-not-allowed") return "Tính năng này chưa được bật. Vui lòng liên hệ quản trị.";
+  if (code === "auth/quota-exceeded") return "Vượt quá hạn mức OTP. Vui lòng thử lại sau.";
+  if (code === "auth/missing-verification-code") return "Vui lòng nhập OTP.";
+  if (code === "auth/app-not-authorized") return "Ứng dụng chưa được cấp quyền. Kiểm tra domain/localhost trên Firebase.";
+  if (code === "auth/network-request-failed") return "Lỗi mạng. Vui lòng kiểm tra kết nối và thử lại.";
+  return error?.message || "Có lỗi xảy ra. Vui lòng thử lại.";
 };
 
 const ForgotPasswordPage = () => {
   const navigate = useNavigate();
 
   const [step, setStep] = useState(1);
-  const [identifier, setIdentifier] = useState("");
-  const [identifierType, setIdentifierType] = useState("");
-  const [session, setSession] = useState(null);
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [otp, setOtp] = useState("");
   const [resetToken, setResetToken] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -47,7 +63,10 @@ const ForgotPasswordPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [resendCooldown, setResendCooldown] = useState(0);
-  const [secondsToExpire, setSecondsToExpire] = useState(0);
+
+  const [maskedPhone, setMaskedPhone] = useState("");
+  const [confirmationResult, setConfirmationResult] = useState(null);
+  const confirmationResultRef = useRef(null);
 
   const passwordChecks = useMemo(() => passwordPolicy(newPassword), [newPassword]);
 
@@ -57,103 +76,187 @@ const ForgotPasswordPage = () => {
     return () => clearTimeout(timer);
   }, [resendCooldown]);
 
+  const getFreshRecaptchaContainer = () => {
+    const container = document.getElementById("recaptcha-container");
+    if (!container) throw new Error("Không tìm thấy container reCAPTCHA.");
+
+    if (container.childElementCount > 0) {
+      const parent = container.parentElement;
+      if (parent) {
+        const fresh = container.cloneNode(false);
+        parent.replaceChild(fresh, container);
+        return fresh;
+      }
+      container.innerHTML = "";
+    }
+
+    return container;
+  };
+  const ensureRecaptchaVerifier = async () => {
+    if (window.recaptchaVerifier) {
+      if (window.recaptchaRenderPromise) {
+        await window.recaptchaRenderPromise;
+      }
+      return window.recaptchaVerifier;
+    }
+
+    const container = getFreshRecaptchaContainer();
+
+    // IMPORTANT: init only once, store globally
+    window.recaptchaVerifier = new RecaptchaVerifier(auth, container, {
+      size: "invisible",
+      badge: "bottomleft",
+    });
+    window.recaptchaRenderPromise = window.recaptchaVerifier.render().catch((renderError) => {
+      try {
+        window.recaptchaVerifier?.clear?.();
+      } catch {
+        // ignore
+      }
+      window.recaptchaVerifier = null;
+      window.recaptchaRenderPromise = null;
+      throw renderError;
+    });
+    await window.recaptchaRenderPromise;
+    return window.recaptchaVerifier;
+  };
+
+  const resetRecaptcha = () => {
+    try {
+      window.recaptchaVerifier?.clear?.();
+    } catch {
+      // ignore
+    } finally {
+      window.recaptchaVerifier = null;
+      window.recaptchaRenderPromise = null;
+
+      try {
+        const container = document.getElementById("recaptcha-container");
+        if (container && container.childElementCount > 0) {
+          const parent = container.parentElement;
+          if (parent) {
+            const fresh = container.cloneNode(false);
+            parent.replaceChild(fresh, container);
+          } else {
+            container.innerHTML = "";
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+  };
+
   useEffect(() => {
-    if (!session?.expiresAt) return undefined;
+    return () => resetRecaptcha();
+  }, []);
 
-    const update = () => {
-      const remain = Math.max(0, Math.floor((new Date(session.expiresAt).getTime() - Date.now()) / 1000));
-      setSecondsToExpire(remain);
-    };
+  const sendPhoneOTPViaFirebase = async ({ force = false } = {}) => {
+    if (resendCooldown > 0 || loading) return;
 
-    update();
-    const timer = setInterval(update, 1000);
-    return () => clearInterval(timer);
-  }, [session?.expiresAt]);
+    const normalizedLocal = phoneNumber.trim();
+    if (!normalizedLocal) {
+      setError("Vui lòng nhập số điện thoại");
+      return;
+    }
 
-  const isOTPExpired = useMemo(
-    () => Boolean(session?.expiresAt) && secondsToExpire <= 0,
-    [session?.expiresAt, secondsToExpire],
-  );
-
-  const requestOTP = async (type) => {
     setLoading(true);
     setError("");
 
     try {
-      const normalized = identifier.trim();
-      const response =
-        type === "EMAIL"
-          ? await authAPI.forgotPasswordEmail({ email: normalized.toLowerCase() })
-          : await authAPI.forgotPasswordPhone({ phoneNumber: normalized });
-
+      // Backend gate: ensure account exists + rate limiting
+      const response = await authAPI.forgotPasswordPhone({ phoneNumber: normalizedLocal });
       const payload = response?.data?.data || {};
+      setMaskedPhone(payload.maskedContact || "");
 
-      setSession({
-        sessionId: payload.sessionId,
-        expiresAt: payload.expiresAt,
-        channel: payload.channel,
-        maskedContact: payload.maskedContact,
-        devOTP: payload.devOTP,
-      });
-      setOtp("");
-      setStep(3);
-      setResendCooldown(RESEND_COOLDOWN_SECONDS);
-      setLoading(false);
-
-      if (payload.devOTP) {
-        toast.message("SMS OTP mock", {
-          description: `Mã OTP test: ${payload.devOTP}`,
-        });
-      } else {
-        toast.success("OTP đã được gửi");
+      const phoneE164 = normalizeVietnamPhoneNumberToE164(normalizedLocal);
+      if (!phoneE164 || !phoneE164.startsWith("+")) {
+        throw new Error("Số điện thoại không hợp lệ.");
       }
-    } catch (requestError) {
+
+      console.log("Normalized phone:", phoneE164);
+
+      if (force) {
+        setConfirmationResult(null);
+        confirmationResultRef.current = null;
+        window.confirmationResult = null;
+        resetRecaptcha();
+      }
+
+      const verifier = await ensureRecaptchaVerifier();
+      console.log("Sending OTP...");
+      const result = await signInWithPhoneNumber(auth, phoneE164, verifier);
+      console.log("ConfirmationResult:", result);
+      setConfirmationResult(result);
+      confirmationResultRef.current = result;
+      window.confirmationResult = result;
+      setOtp("");
+      setStep(2);
+      setResendCooldown(RESEND_COOLDOWN_SECONDS);
+      toast.success("OTP đã được gửi");
+    } catch (sendError) {
+      resetRecaptcha();
+      setError(sendError?.response?.data?.message || mapFirebaseError(sendError));
+    } finally {
       setLoading(false);
-      setError(requestError?.response?.data?.message || "Không thể gửi OTP");
     }
   };
 
   const handleContinue = async (event) => {
     event.preventDefault();
-    const normalized = identifier.trim();
+    const normalized = phoneNumber.trim();
     if (!normalized) {
-      setError("Vui lòng nhập số điện thoại hoặc email");
+      setError("Vui lòng nhập số điện thoại");
       return;
     }
 
-    const isEmail = normalized.includes("@");
-    setIdentifierType(isEmail ? "EMAIL" : "PHONE");
     setError("");
 
-    if (isEmail) {
-      setStep(2);
-      return;
-    }
-
-    await requestOTP("PHONE");
+    await sendPhoneOTPViaFirebase();
   };
 
   const handleVerifyOTP = async (event) => {
     event.preventDefault();
-    if (!session?.sessionId || otp.length !== 6) return;
+    if (otp.length !== 6) return;
 
     setLoading(true);
     setError("");
 
     try {
-      const response = await authAPI.resetPassword({
-        sessionId: session.sessionId,
-        otp,
-      });
+      console.log("Entered OTP:", otp);
 
+      const effectiveConfirmationResult =
+        confirmationResult || confirmationResultRef.current || window.confirmationResult;
+
+      if (!effectiveConfirmationResult) {
+        setLoading(false);
+        setError("Vui lòng gửi OTP trước.");
+        return;
+      }
+
+      const code = String(otp || "").trim();
+      if (!/^\d{6}$/.test(code)) {
+        setLoading(false);
+        setError("OTP phải gồm đúng 6 chữ số.");
+        return;
+      }
+
+      console.log("OTP:", code);
+      const credential = await effectiveConfirmationResult.confirm(code);
+      const idToken = await credential.user.getIdToken();
+
+      const response = await authAPI.resetPassword({
+        phoneNumber: phoneNumber.trim(),
+        firebaseIdToken: idToken,
+      });
       const payload = response?.data?.data || {};
       setResetToken(payload.resetToken || "");
-      setStep(4);
+      setStep(3);
       setLoading(false);
       toast.success("OTP hợp lệ. Vui lòng nhập mật khẩu mới.");
     } catch (verifyError) {
       setLoading(false);
-      setError(mapOTPError(verifyError));
+      setError(verifyError?.response?.data?.message || mapFirebaseError(verifyError));
     }
   };
 
@@ -198,13 +301,13 @@ const ForgotPasswordPage = () => {
 
   const handleResendOTP = async () => {
     if (resendCooldown > 0 || loading) return;
-    await requestOTP(identifierType === "EMAIL" ? "EMAIL" : "PHONE");
+    await sendPhoneOTPViaFirebase();
   };
 
   return (
     <AuthLayout
       title="Quên mật khẩu"
-      description="Khôi phục tài khoản bằng OTP qua email hoặc SMS."
+      description="Nhập số điện thoại để nhận OTP, sau đó đặt lại mật khẩu."
       footer={
         <p className="text-center text-sm text-slate-600">
           Đã nhớ mật khẩu?{" "}
@@ -219,65 +322,32 @@ const ForgotPasswordPage = () => {
       {step === 1 ? (
         <form className="space-y-4" onSubmit={handleContinue}>
           <FormInput
-            label="Số điện thoại hoặc Email"
-            name="identifier"
-            value={identifier}
+            label="Số điện thoại"
+            name="phoneNumber"
+            value={phoneNumber}
             onChange={(event) => {
               setError("");
-              setIdentifier(event.target.value);
+              setPhoneNumber(event.target.value);
             }}
-            placeholder="Nhập số điện thoại hoặc email"
+            placeholder="Ví dụ: 0912345678"
             required
           />
 
           <Button type="submit" className="h-11 w-full" disabled={loading}>
-            {loading ? "Đang xử lý..." : "Tiếp tục"}
+            {loading ? "Đang gửi OTP..." : "Gửi OTP"}
           </Button>
         </form>
       ) : null}
 
       {step === 2 ? (
-        <div className="space-y-4">
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-            Bạn có muốn nhận OTP qua email <strong>{identifier.trim().toLowerCase()}</strong> không?
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Button type="button" className="h-11" disabled={loading} onClick={() => requestOTP("EMAIL")}>
-              {loading ? "Đang gửi..." : "Đồng ý"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-11"
-              disabled={loading}
-              onClick={() => {
-                setStep(1);
-                setIdentifierType("");
-              }}
-            >
-              Hủy
-            </Button>
-          </div>
-        </div>
-      ) : null}
-
-      {step === 3 ? (
         <form className="space-y-4" onSubmit={handleVerifyOTP}>
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-            OTP đã gửi tới <strong>{session?.maskedContact || "liên hệ của bạn"}</strong>.
-            <div className="mt-1 text-xs text-slate-500">Mã hết hạn sau {formatCountdown(secondsToExpire)}</div>
-            {session?.devOTP ? (
-              <div className="mt-1 text-xs font-medium text-amber-700">Mã OTP test (SMS mock): {session.devOTP}</div>
-            ) : null}
+            OTP đã gửi tới <strong>{maskedPhone || "số điện thoại của bạn"}</strong>.
           </div>
 
-          <OTPInput value={otp} onChange={setOtp} disabled={loading || isOTPExpired} hasError={Boolean(error)} />
+          <OTPInput value={otp} onChange={setOtp} disabled={loading} hasError={Boolean(error)} />
 
-          {isOTPExpired ? (
-            <p className="text-center text-sm font-medium text-amber-600">OTP đã hết hạn. Vui lòng gửi lại.</p>
-          ) : null}
-
-          <Button type="submit" className="h-11 w-full" disabled={loading || otp.length !== 6 || isOTPExpired}>
+          <Button type="submit" className="h-11 w-full" disabled={loading || otp.length !== 6}>
             {loading ? "Đang xác nhận..." : "Xác nhận OTP"}
           </Button>
 
@@ -293,7 +363,7 @@ const ForgotPasswordPage = () => {
         </form>
       ) : null}
 
-      {step === 4 ? (
+      {step === 3 ? (
         <form className="space-y-4" onSubmit={handleResetPassword}>
           <FormInput
             label="Mật khẩu mới"
@@ -334,9 +404,9 @@ const ForgotPasswordPage = () => {
           </Button>
         </form>
       ) : null}
+
     </AuthLayout>
   );
 };
 
 export default ForgotPasswordPage;
-
