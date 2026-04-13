@@ -1,22 +1,11 @@
-// FILE: src/pages/LoginPage.jsx
-// ============================================
 import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { Button } from "@/shared/ui/button";
+import { ErrorMessage } from "@/shared/ui/ErrorMessage";
+import AuthLayout from "../components/AuthLayout";
+import FormInput from "../components/FormInput";
 import { useAuthStore } from "../state/auth.store";
 import { resolveHomeRoute } from "../lib/authorization";
-import { LogIn } from "lucide-react";
-import { Button } from "@/shared/ui/button";
-import { Input } from "@/shared/ui/input";
-import { Label } from "@/shared/ui/label";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  CardFooter,
-} from "@/shared/ui/card";
-import { ErrorMessage } from "@/shared/ui/ErrorMessage";
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -27,88 +16,88 @@ const LoginPage = () => {
     password: "",
   });
 
-  const handleChange = (e) => {
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+    if (name === "phoneNumber" && !/^\d*$/.test(value)) {
+      return;
+    }
+
     clearError();
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const result = await login(formData);
+  const handleSubmit = async (event) => {
+    event.preventDefault();
 
-    if (result.success) {
-      const { user, authz, authorization } = useAuthStore.getState();
-      navigate(resolveHomeRoute({ user, authz, authorization }) || "/");
-    }
+    const result = await login({
+      phoneNumber: formData.phoneNumber.trim(),
+      password: formData.password,
+    });
+
+    if (!result.success) return;
+
+    const { user, authz, authorization } = useAuthStore.getState();
+    navigate(resolveHomeRoute({ user, authz, authorization }) || "/");
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background dark:bg-background">
-      <div className="w-full max-w-lg px-4">
-        <Card className="border-4">
-          <CardHeader className="text-center space-y-2">
-            <div className="flex justify-center mb-2">
-              <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
-                <LogIn className="w-6 h-6 text-primary" />
-              </div>
-            </div>
-            <CardTitle className="text-2xl">Đăng nhập</CardTitle>
-            <CardDescription>
-              Nhập số điện thoại và mật khẩu để đăng nhập
-            </CardDescription>
-          </CardHeader>
+    <AuthLayout
+      title="Đăng nhập"
+      description="Dùng số điện thoại và mật khẩu để truy cập tài khoản của bạn."
+      footer={
+        <p className="text-center text-sm text-slate-600">
+          Chưa có tài khoản?{" "}
+          <Link to="/register" className="font-medium text-slate-900 underline-offset-4 hover:underline">
+            Đăng ký
+          </Link>
+        </p>
+      }
+    >
+      <form className="space-y-4" onSubmit={handleSubmit}>
+        {error ? <ErrorMessage message={error} /> : null}
 
-          <form onSubmit={handleSubmit}>
-            <CardContent className="space-y-4">
-              {error && <ErrorMessage message={error} />}
+        <FormInput
+          label="Số điện thoại"
+          name="phoneNumber"
+          type="tel"
+          value={formData.phoneNumber}
+          onChange={handleChange}
+          placeholder="Nhập số điện thoại"
+          inputMode="numeric"
+          autoComplete="tel"
+          required
+        />
 
-              <div className="space-y-2">
-                <Label htmlFor="phoneNumber">Số điện thoại</Label>
-                <Input
-                  id="phoneNumber"
-                  name="phoneNumber"
-                  type="tel"
-                  placeholder="0123456789"
-                  value={formData.phoneNumber}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
+        <FormInput
+          label="Mật khẩu"
+          name="password"
+          type="password"
+          value={formData.password}
+          onChange={handleChange}
+          placeholder="Nhập mật khẩu"
+          autoComplete="current-password"
+          required
+        />
 
-              <div className="space-y-2">
-                <Label htmlFor="password">Mật khẩu</Label>
-                <Input
-                  id="password"
-                  name="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={formData.password}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-            </CardContent>
+        <div className="flex justify-end">
+          <Link
+            to="/forgot-password"
+            className="text-sm font-medium text-slate-700 underline-offset-4 hover:text-slate-900 hover:underline"
+          >
+            Quên mật khẩu?
+          </Link>
+        </div>
 
-            <CardFooter className="flex flex-col space-y-4">
-              <Button type="submit" disabled={isLoading} className="w-full">
-                {isLoading ? "Đang đăng nhập..." : "Đăng nhập"}
-              </Button>
-
-              <p className="text-sm text-center text-muted-foreground">
-                Chưa có tài khoản?{" "}
-                <Link to="/register" className="text-primary hover:underline">
-                  Đăng ký ngay
-                </Link>
-              </p>
-            </CardFooter>
-          </form>
-        </Card>
-      </div>
-    </div>
+        <Button type="submit" disabled={isLoading} className="h-11 w-full">
+          {isLoading ? "Đang đăng nhập..." : "Đăng nhập"}
+        </Button>
+      </form>
+    </AuthLayout>
   );
 };
 
 export default LoginPage;
+

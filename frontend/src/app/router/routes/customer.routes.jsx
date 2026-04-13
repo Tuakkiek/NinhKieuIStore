@@ -6,6 +6,7 @@ import { CartPage } from "@/features/cart";
 import { ProfilePage } from "@/features/account";
 import { CheckoutPage } from "@/features/checkout";
 import { OrderDetailPage } from "@/features/orders";
+import { AddEmailPage } from "@/features/auth";
 
 const customerRoutes = (
   <Route element={<PublicLayout />}>
@@ -40,6 +41,14 @@ const customerRoutes = (
           allowedPermissions={["account.profile.update.self", "account.address.manage.self"]}
         >
           <ProfilePage />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/profile/add-email"
+      element={
+        <ProtectedRoute allowedPermissions={["account.profile.update.self"]}>
+          <AddEmailPage />
         </ProtectedRoute>
       }
     />

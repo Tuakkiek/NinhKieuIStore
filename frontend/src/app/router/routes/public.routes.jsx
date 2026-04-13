@@ -1,8 +1,8 @@
-import React from "react";
+﻿import React from "react";
 import { Route } from "react-router-dom";
 import PublicLayout from "@/app/layouts/public/PublicLayout";
 import NotFoundPage from "@/app/router/NotFoundPage";
-import { LoginPage, RegisterPage } from "@/features/auth";
+import { ForgotPasswordPage, LoginPage, RegisterPage, VerifyEmailPage } from "@/features/auth";
 import { WarrantyLookupPage } from "@/features/afterSales";
 import { ProductsPage, ProductDetailPage } from "@/features/catalog";
 import { SearchResultsPage } from "@/features/search";
@@ -26,9 +26,12 @@ const publicRoutes = (
       <Route path="/warranty-check" element={<WarrantyLookupPage />} />
       <Route path="/products/:productSlug" element={<ProductDetailPage />} />
       <Route path="/:categorySlug/:productSlug" element={<ProductDetailPage />} />
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
     </Route>
+
+    <Route path="/login" element={<LoginPage />} />
+    <Route path="/register" element={<RegisterPage />} />
+    <Route path="/verify-email" element={<VerifyEmailPage />} />
+    <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
     <Route path="/payment/vnpay/return" element={<VNPayReturnPage />} />
     <Route path="*" element={<NotFoundPage />} />
@@ -36,3 +39,4 @@ const publicRoutes = (
 );
 
 export default publicRoutes;
+

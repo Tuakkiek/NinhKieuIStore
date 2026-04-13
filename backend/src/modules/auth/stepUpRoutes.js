@@ -1,5 +1,5 @@
-import express from "express";
-import rateLimit from "express-rate-limit";
+﻿import express from "express";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import {
   requestStepUp,
   verifyStepUpOTP,
@@ -9,11 +9,10 @@ import {
 
 const router = express.Router();
 
-// Rate limiter cho resend OTP — tối đa 1 request / 60 giây mỗi user
 const resendLimiter = rateLimit({
-  windowMs: 60 * 1000, // 60 giây
+  windowMs: 60 * 1000,
   max: 1,
-  keyGenerator: (req) => `stepup-resend:${req.user?._id || req.ip}`,
+  keyGenerator: (req) => `stepup-resend:${req.user?._id || ipKeyGenerator(req.ip || "")}`,
   message: {
     success: false,
     code: "STEP_UP_RATE_LIMITED",
@@ -23,11 +22,10 @@ const resendLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Rate limiter chung cho verify — ngăn brute force
 const verifyLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 phút
+  windowMs: 5 * 60 * 1000,
   max: 10,
-  keyGenerator: (req) => `stepup-verify:${req.user?._id || req.ip}`,
+  keyGenerator: (req) => `stepup-verify:${req.user?._id || ipKeyGenerator(req.ip || "")}`,
   message: {
     success: false,
     code: "STEP_UP_RATE_LIMITED",
@@ -37,16 +35,9 @@ const verifyLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// POST /api/auth/step-up/request
 router.post("/request", requestStepUp);
-
-// POST /api/auth/step-up/verify
 router.post("/verify", verifyLimiter, verifyStepUpOTP);
-
-// POST /api/auth/step-up/resend
 router.post("/resend", resendLimiter, resendStepUpOTP);
-
-// GET /api/auth/step-up/status?action=product.delete
 router.get("/status", getStepUpStatusHandler);
 
 export default router;

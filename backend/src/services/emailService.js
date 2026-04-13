@@ -12,10 +12,10 @@ import nodemailer from "nodemailer";
 // ────────────────────────────────────────────────────────────────
 //  Brand constants
 // ────────────────────────────────────────────────────────────────
-const BRAND_NAME = "SmartMobile Store";
+const BRAND_NAME = "Ninh Kiểu iStore";
 const BRAND_COLOR = "#1a1a2e";
 const BRAND_ACCENT = "#e94560";
-const SUPPORT_EMAIL = process.env.SMTP_FROM || "noreply@smartmobilestore.vn";
+const SUPPORT_EMAIL = "[EMAIL_ADDRESS]";
 
 // ────────────────────────────────────────────────────────────────
 //  SMTP config validation
@@ -113,7 +113,7 @@ const emailLayout = ({ title, preheader = "", body }) => `
           <tr>
             <td style="background:${BRAND_COLOR};padding:28px 40px;text-align:center;">
               <h1 style="color:#ffffff;margin:0;font-size:22px;font-weight:700;letter-spacing:0.5px;">
-                📱 ${BRAND_NAME}
+                 ${BRAND_NAME}
               </h1>
             </td>
           </tr>
@@ -152,7 +152,7 @@ const emailLayout = ({ title, preheader = "", body }) => `
  * @param {string} opts.to           - Địa chỉ email nhận
  * @param {string} opts.otp          - Mã OTP (plain text, 6 số)
  * @param {number} [opts.ttlMinutes] - TTL tính bằng phút (để hiển thị trong email)
- * @param {"step_up"|"email_verification"} [opts.type] - Loại OTP
+ * @param {"step_up"|"email_verification"|"forgot_password"} [opts.type] - Loại OTP
  * @param {string} [opts.action]     - Action mô tả (vd: "product.delete")
  * @returns {Promise<void>}
  * @throws {Error} nếu SMTP không được cấu hình hoặc gửi thất bại
@@ -162,17 +162,25 @@ export const sendOTPEmail = async ({ to, otp, ttlMinutes = 10, type = "step_up",
   if (!otp) throw new Error("[EmailService] sendOTPEmail: otp is required");
 
   const isVerification = type === "email_verification";
+  const isForgotPassword = type === "forgot_password";
 
   const subjectMap = {
     step_up: `[${BRAND_NAME}] Mã OTP xác nhận thao tác bảo mật`,
     email_verification: `[${BRAND_NAME}] Xác thực địa chỉ email của bạn`,
+    forgot_password: `[${BRAND_NAME}] Mã OTP đặt lại mật khẩu`,
   };
 
   const subject = subjectMap[type] || subjectMap["step_up"];
-  const heading = isVerification ? "Xác thực email" : "Xác nhận thao tác bảo mật";
+  const heading = isVerification
+    ? "Xác thực email"
+    : isForgotPassword
+      ? "Đặt lại mật khẩu"
+      : "Xác nhận thao tác bảo mật";
   const description = isVerification
     ? "Bạn vừa đăng ký tài khoản tại <strong>SmartMobile Store</strong>. Vui lòng nhập mã OTP bên dưới để xác thực địa chỉ email của bạn."
-    : `Bạn vừa yêu cầu thực hiện một thao tác cần xác minh danh tính bổ sung${action ? ` (<code>${action}</code>)` : ""}.`;
+    : isForgotPassword
+      ? "Bạn vừa yêu cầu đặt lại mật khẩu. Vui lòng nhập mã OTP bên dưới để tiếp tục đổi mật khẩu."
+      : `Bạn vừa yêu cầu thực hiện một thao tác cần xác minh danh tính bổ sung${action ? ` (<code>${action}</code>)` : ""}.`;
 
   const html = emailLayout({
     title: subject,

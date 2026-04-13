@@ -682,6 +682,7 @@ const OrderDetailDialog = ({
 // ============================================
 
 const ProfileForm = ({ user, onUpdate }) => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     fullName: user?.fullName || "",
     email: user?.email || "",
@@ -765,7 +766,7 @@ const ProfileForm = ({ user, onUpdate }) => {
                 </Badge>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="space-y-2">
               <Input
                 id="email"
                 name="email"
@@ -773,21 +774,19 @@ const ProfileForm = ({ user, onUpdate }) => {
                 value={formData.email}
                 onChange={handleChange}
                 className="flex-1"
+                disabled
               />
-              {!user?.emailVerified && formData.email && formData.email === user?.email && (
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => {
-                    setVerifyStep(1);
-                    setOtpCode("");
-                    setVerifyError("");
-                    setShowVerifyDialog(true);
-                  }}
-                >
-                  Xác thực
-                </Button>
-              )}
+              {!user?.email ? (
+                <p className="text-xs text-amber-700">Bạn chưa liên kết email.</p>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full sm:w-auto"
+                onClick={() => navigate("/profile/add-email")}
+              >
+                {user?.email ? "Quản lý email qua OTP" : "Liên kết email"}
+              </Button>
             </div>
           </div>
 

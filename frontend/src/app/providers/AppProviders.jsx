@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { BrowserRouter, useLocation } from "react-router-dom";
 import { Toaster } from "sonner";
+import { AuthFlowProvider } from "@/features/auth/context/AuthFlowContext";
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -22,7 +23,9 @@ const ProviderContent = ({ children }) => (
 
 const AppProviders = ({ children }) => (
   <BrowserRouter>
-    <ProviderContent>{children}</ProviderContent>
+    <AuthFlowProvider>
+      <ProviderContent>{children}</ProviderContent>
+    </AuthFlowProvider>
   </BrowserRouter>
 );
 

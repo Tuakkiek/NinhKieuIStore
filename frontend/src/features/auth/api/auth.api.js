@@ -23,6 +23,12 @@ export const authAPI = {
 
   // Email Verification endpoints
   sendEmailOTP: (data) => api.post("/auth/send-email-otp", data),
+  addEmail: (data) => api.post("/auth/add-email", data),
   verifyEmailOTP: (data) => api.post("/auth/verify-email-otp", data),
   resendEmailOTP: (data) => api.post("/auth/resend-email-otp", data),
+
+  // Forgot password endpoints
+  forgotPasswordEmail: (data) => api.post("/auth/forgot-password/email", data),
+  forgotPasswordPhone: (data) => api.post("/auth/forgot-password/phone", data),
+  resetPassword: (data) => api.post("/auth/reset-password", data),
 };
