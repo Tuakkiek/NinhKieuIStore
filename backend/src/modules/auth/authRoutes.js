@@ -51,7 +51,7 @@ const emailOTPLimiter = rateLimit({
   message: {
     success: false,
     code: "EMAIL_OTP_RATE_LIMITED",
-    message: "Quá nhi?u yêu c?u. Vui lòng ch? 1 phút tru?c khi th? l?i.",
+    message: "Quá nhiều yêu cầu. Vui lòng chờ 1 phút trước khi thử lại.",
   },
   standardHeaders: true,
   legacyHeaders: false,

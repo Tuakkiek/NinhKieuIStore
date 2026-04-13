@@ -113,7 +113,7 @@ const issueEmailOTP = async ({ req, userId, email, purpose }) => {
       ok: false,
       status: 429,
       code: "EMAIL_OTP_RATE_LIMITED",
-      message: `Vui lòng ch? ${waitSeconds} giây tru?c khi g?i l?i mã OTP`,
+      message: `Vui lòng chờ ${waitSeconds} giây trước khi gửi lại mã OTP`,
       retryAfterSeconds: waitSeconds,
     };
   }
@@ -375,7 +375,7 @@ export const resendEmailOTP = async (req, res) => {
       return res.status(429).json({
         success: false,
         code: "EMAIL_OTP_RATE_LIMITED",
-        message: `Vui lòng ch? ${waitSeconds} giây tru?c khi g?i l?i mã OTP`,
+        message: `Vui lòng chờ ${waitSeconds} giây trước khi gửi lại mã OTP`,
         retryAfterSeconds: waitSeconds,
       });
     }

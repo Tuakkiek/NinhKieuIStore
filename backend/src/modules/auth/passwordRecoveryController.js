@@ -100,7 +100,7 @@ const issueForgotPasswordOTP = async ({ req, user, channel, target }) => {
       ok: false,
       status: 429,
       code: "FORGOT_PASSWORD_RATE_LIMITED",
-      message: `Vui lòng ch? ${waitSeconds} giây tru?c khi g?i l?i OTP`,
+      message: `Vui lòng chờ ${waitSeconds} giây trước khi gửi lại OTP`,
       retryAfterSeconds: waitSeconds,
     };
   }
