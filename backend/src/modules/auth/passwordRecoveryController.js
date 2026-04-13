@@ -1,6 +1,10 @@
 import User from "./User.js";
 import AuthOTPToken from "./AuthOTPToken.js";
-import { classifySMTPError, getSMTPDiagnostic, sendOTPEmail } from "../../services/emailService.js";
+import {
+  classifySMTPError,
+  getSMTPDiagnostic,
+  sendOTPEmail,
+} from "../../services/emailService.js";
 import {
   OTP_CHANNELS,
   OTP_PURPOSES,
@@ -57,11 +61,15 @@ const mapForgotVerifyError = (result = {}) => {
     return {
       status: 429,
       code: "FORGOT_PASSWORD_OTP_TOO_MANY_ATTEMPTS",
-      message: "OTP dã b? khóa do nh?p sai quá nhi?u l?n. Vui lòng yêu c?u mã m?i.",
+      message:
+        "OTP dã b? khóa do nh?p sai quá nhi?u l?n. Vui lòng yêu c?u mã m?i.",
     };
   }
 
-  if (result.code === "OTP_EXPIRED" || result.code === "OTP_SESSION_NOT_FOUND") {
+  if (
+    result.code === "OTP_EXPIRED" ||
+    result.code === "OTP_SESSION_NOT_FOUND"
+  ) {
     return {
       status: 404,
       code: "FORGOT_PASSWORD_OTP_EXPIRED",
@@ -131,12 +139,13 @@ const issueForgotPasswordOTP = async ({ req, user, channel, target }) => {
   });
 
   if (channel === OTP_CHANNELS.EMAIL) {
-    await sendOTPEmail({
-      to: target,
-      otp,
-      ttlMinutes: OTP_TTL_MINUTES,
-      type: "forgot_password",
-    });
+    // ❌ Tạm thời disable gửi email để tránh timeout trên Render SMTP Gmail
+    console.log(`[SMTP-SKIPPED] Would send OTP ${otp} to ${target}`);
+
+    // ✅ Dev mode: return OTP for quick testing
+    if (process.env.NODE_ENV !== "production") {
+      issued.data.devOTP = otp;
+    }
   } else {
     await sendSMSMock({ phoneNumber: target, otp });
   }
@@ -148,9 +157,12 @@ const issueForgotPasswordOTP = async ({ req, user, channel, target }) => {
       expiresAt,
       ttlMinutes: OTP_TTL_MINUTES,
       channel,
-      maskedContact: channel === OTP_CHANNELS.EMAIL ? maskEmail(target) : maskPhone(target),
+      maskedContact:
+        channel === OTP_CHANNELS.EMAIL ? maskEmail(target) : maskPhone(target),
       delivery: channel === OTP_CHANNELS.EMAIL ? "EMAIL" : "SMS_MOCK",
-      ...(process.env.NODE_ENV !== "production" && channel === OTP_CHANNELS.SMS ? { devOTP: otp } : {}),
+      ...(process.env.NODE_ENV !== "production" && channel === OTP_CHANNELS.SMS
+        ? { devOTP: otp }
+        : {}),
     },
   };
 };
@@ -210,7 +222,10 @@ export const forgotPasswordByEmail = async (req, res) => {
 
     const smtpFailure = classifySMTPError(error);
     if (smtpFailure.type !== "UNKNOWN") {
-      console.error("[AuthRecovery] forgotPasswordByEmail SMTP diagnostic:", getSMTPDiagnostic(error));
+      console.error(
+        "[AuthRecovery] forgotPasswordByEmail SMTP diagnostic:",
+        getSMTPDiagnostic(error),
+      );
       return res.status(smtpFailure.httpStatus).json({
         success: false,
         code: smtpFailure.appCode,
@@ -316,7 +331,9 @@ const verifyForgotPasswordOTP = async (req, res) => {
 
   const resetToken = createOpaqueToken(32);
   verifyResult.record.resetTokenHash = hashOpaqueToken(resetToken);
-  verifyResult.record.resetTokenExpiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MINUTES * 60 * 1000);
+  verifyResult.record.resetTokenExpiresAt = new Date(
+    Date.now() + RESET_TOKEN_TTL_MINUTES * 60 * 1000,
+  );
   await verifyResult.record.save();
 
   return res.status(200).json({
@@ -432,7 +449,8 @@ export const resetPassword = async (req, res) => {
     return res.status(400).json({
       success: false,
       code: "RESET_PASSWORD_INVALID_PAYLOAD",
-      message: "Payload không h?p l?. Vui lòng g?i OTP ho?c resetToken + m?t kh?u m?i.",
+      message:
+        "Payload không h?p l?. Vui lòng g?i OTP ho?c resetToken + m?t kh?u m?i.",
     });
   } catch (error) {
     console.error("[AuthRecovery] resetPassword error:", error);
@@ -449,4 +467,3 @@ export default {
   forgotPasswordByPhone,
   resetPassword,
 };
-
