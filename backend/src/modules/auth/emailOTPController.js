@@ -1,4 +1,4 @@
-﻿/**
+/**
  * emailOTPController.js
  * Handles customer email verification flow:
  *   POST /api/auth/send-email-otp
@@ -8,7 +8,7 @@
  */
 import User from "./User.js";
 import AuthOTPToken from "./AuthOTPToken.js";
-import { sendOTPEmail, sendWelcomeEmail } from "../../services/emailService.js";
+import { classifySMTPError, getSMTPDiagnostic, sendOTPEmail, sendWelcomeEmail } from "../../services/emailService.js";
 import {
   OTP_CHANNELS,
   OTP_PURPOSES,
@@ -213,11 +213,13 @@ const sendEmailOTPByPurpose = async ({ req, res, purpose, successMessage }) => {
   } catch (error) {
     console.error("[EmailOTP] send error:", error);
 
-    if (error.code === "SMTP_CONFIG_MISSING") {
-      return res.status(503).json({
+    const smtpFailure = classifySMTPError(error);
+    if (smtpFailure.type !== "UNKNOWN") {
+      console.error("[EmailOTP] send SMTP diagnostic:", getSMTPDiagnostic(error));
+      return res.status(smtpFailure.httpStatus).json({
         success: false,
-        code: "EMAIL_SERVICE_UNAVAILABLE",
-        message: "D?ch v? g?i email chua du?c c?u hình. Vui lòng liên h? admin.",
+        code: smtpFailure.appCode,
+        message: smtpFailure.message,
       });
     }
 
@@ -417,11 +419,13 @@ export const resendEmailOTP = async (req, res) => {
   } catch (error) {
     console.error("[EmailOTP] resendEmailOTP error:", error);
 
-    if (error.code === "SMTP_CONFIG_MISSING") {
-      return res.status(503).json({
+    const smtpFailure = classifySMTPError(error);
+    if (smtpFailure.type !== "UNKNOWN") {
+      console.error("[EmailOTP] resendEmailOTP SMTP diagnostic:", getSMTPDiagnostic(error));
+      return res.status(smtpFailure.httpStatus).json({
         success: false,
-        code: "EMAIL_SERVICE_UNAVAILABLE",
-        message: "D?ch v? g?i email chua du?c c?u hình.",
+        code: smtpFailure.appCode,
+        message: smtpFailure.message,
       });
     }
 
@@ -439,4 +443,3 @@ export default {
   verifyEmailOTP,
   resendEmailOTP,
 };
-

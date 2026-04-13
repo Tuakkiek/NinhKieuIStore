@@ -1,6 +1,6 @@
 import User from "./User.js";
 import AuthOTPToken from "./AuthOTPToken.js";
-import { sendOTPEmail } from "../../services/emailService.js";
+import { classifySMTPError, getSMTPDiagnostic, sendOTPEmail } from "../../services/emailService.js";
 import {
   OTP_CHANNELS,
   OTP_PURPOSES,
@@ -208,11 +208,13 @@ export const forgotPasswordByEmail = async (req, res) => {
   } catch (error) {
     console.error("[AuthRecovery] forgotPasswordByEmail error:", error);
 
-    if (error.code === "SMTP_CONFIG_MISSING") {
-      return res.status(503).json({
+    const smtpFailure = classifySMTPError(error);
+    if (smtpFailure.type !== "UNKNOWN") {
+      console.error("[AuthRecovery] forgotPasswordByEmail SMTP diagnostic:", getSMTPDiagnostic(error));
+      return res.status(smtpFailure.httpStatus).json({
         success: false,
-        code: "EMAIL_SERVICE_UNAVAILABLE",
-        message: "D?ch v? g?i email chua du?c c?u hình.",
+        code: smtpFailure.appCode,
+        message: smtpFailure.message,
       });
     }
 
