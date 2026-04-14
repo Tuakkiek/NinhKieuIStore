@@ -89,7 +89,8 @@ const ProductDetailPage = () => {
   const [showAddToCartModal, setShowAddToCartModal] = useState(false);
   const [activeMediaTab, setActiveMediaTab] = useState("variant"); // 'variant' | 'featured' | 'video'
   const [showSpecsPanel, setShowSpecsPanel] = useState(false);
-  const [showWarrantyPanel, setShowWarrantyPanel] = useState(false);
+  const [showWarrantyPanel, 
+    setShowWarrantyPanel] = useState(false);
   const productSource = "universal";
 
   const {
