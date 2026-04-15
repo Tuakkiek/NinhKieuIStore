@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   AlertCircle,
   ArrowRight,
@@ -34,9 +34,9 @@ import {
 } from "@/shared/ui/dialog";
 import { toast } from "sonner";
 import { api } from "@/shared/lib/http/httpClient";
-import { stockTransferAPI } from "@/features/inventory";
+import { inventoryAPI, stockTransferAPI } from "@/features/inventory";
 import { storeAPI } from "@/features/stores";
-import { usePermission } from "@/features/auth";
+import { useAuthStore, usePermission } from "@/features/auth";
 
 const TRANSFER_REASONS = [
   { value: "RESTOCK", label: "Bổ sung hàng" },
@@ -119,9 +119,13 @@ const summarizeTransfers = (transfers = []) =>
     }
   );
 
-  const TransferStockPage = () => {
+const TransferStockPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const activeBranchId = useAuthStore((s) => s.activeBranchId);
+
   const canApproveTransfers = usePermission("transfer.approve");
+  const canCreateTransfer = usePermission("transfer.create");
   const canOperateTransfers = usePermission(
     ["transfer.create", "transfer.ship", "transfer.receive"],
     {
@@ -129,7 +133,10 @@ const summarizeTransfers = (transfers = []) =>
     }
   );
 
-  const [activeTab, setActiveTab] = useState("internal");
+  const tabFromUrl = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState(
+    tabFromUrl === "internal" ? "internal" : "branch"
+  );
   const [loading, setLoading] = useState(false);
 
   const [step, setStep] = useState(1);
@@ -205,6 +212,13 @@ const summarizeTransfers = (transfers = []) =>
       setBranchLoading(false);
     }
   };
+
+  useEffect(() => {
+    const t = searchParams.get("tab");
+    if (t === "internal" || t === "branch") {
+      setActiveTab(t);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (activeTab === "branch") {
@@ -315,6 +329,10 @@ const summarizeTransfers = (transfers = []) =>
   };
 
   const submitTransferRequest = async () => {
+    if (!canCreateTransfer) {
+      toast.error("Bạn không có quyền tạo yêu cầu chuyển kho");
+      return;
+    }
     if (!transferForm.fromStoreId || !transferForm.toStoreId) {
       toast.error("Vui lòng chọn kho xuất và kho nhập");
       return;
@@ -339,6 +357,35 @@ const summarizeTransfers = (transfers = []) =>
     if (cleanedItems.length === 0) {
       toast.error("Vui lòng thêm ít nhất một SKU hợp lệ");
       return;
+    }
+
+    const fromMatchesContext =
+      activeBranchId &&
+      String(transferForm.fromStoreId) === String(activeBranchId);
+
+    if (fromMatchesContext) {
+      try {
+        setBranchLoading(true);
+        for (const item of cleanedItems) {
+          const res = await inventoryAPI.getConsolidated({ sku: item.variantSku });
+          const row = res.data?.inventory?.[0];
+          const available = Number(row?.totalAvailable ?? 0);
+          if (available < item.requestedQuantity) {
+            toast.error(
+              `Không đủ tồn khả dụng tại kho nguồn cho SKU ${item.variantSku}. Khả dụng: ${available}`
+            );
+            setBranchLoading(false);
+            return;
+          }
+        }
+      } catch (error) {
+        toast.error(
+          error.response?.data?.message ||
+            "Không thể kiểm tra tồn kho trước khi gửi. Thử lại hoặc kiểm tra kết nối."
+        );
+        setBranchLoading(false);
+        return;
+      }
     }
 
     try {
@@ -739,8 +786,19 @@ const summarizeTransfers = (transfers = []) =>
                 <ClipboardList className="w-5 h-5 mr-2" />
                 Tạo yêu cầu chuyển kho
               </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Chọn kho nguồn và kho đích, thêm SKU và số lượng. Kho nguồn trùng với chi nhánh
+                đang làm việc sẽ được kiểm tra tồn trước khi gửi; các trường hợp khác máy chủ vẫn
+                xác thực khi tạo phiếu.
+              </p>
             </CardHeader>
             <CardContent className="space-y-4">
+              {!canCreateTransfer && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                  Tài khoản của bạn không có quyền <strong>transfer.create</strong>. Bạn vẫn có thể
+                  xem danh sách phiếu; vui lòng liên quản trị để được cấp quyền tạo yêu cầu.
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label>Từ kho</Label>
@@ -866,7 +924,10 @@ const summarizeTransfers = (transfers = []) =>
               </div>
 
               <div className="flex justify-end">
-                <Button onClick={submitTransferRequest} disabled={branchLoading}>
+                <Button
+                  onClick={submitTransferRequest}
+                  disabled={branchLoading || !canCreateTransfer}
+                >
                   {branchLoading ? "Đang gửi..." : "Tạo yêu cầu"}
                 </Button>
               </div>

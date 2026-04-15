@@ -4,16 +4,17 @@
 // ============================================
 
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/features/auth";
-import { 
-  ScanBarcode, 
-  Package, 
-  MapPin, 
-  CheckCircle, 
+import {
+  ScanBarcode,
+  Package,
+  MapPin,
+  CheckCircle,
   AlertCircle,
   Camera,
-  Printer
+  Printer,
+  ArrowRightLeft,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { Button } from "@/shared/ui/button";
@@ -233,6 +234,20 @@ const ReceiveGoodsPage = () => {
   if (step === 1) {
     return (
       <div className="container mx-auto px-4 py-8">
+        <div className="max-w-2xl mx-auto mb-4">
+          <Link
+            to="/warehouse-staff/transfer?tab=branch"
+            className="flex items-center justify-between gap-3 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-950 transition-colors hover:bg-orange-100"
+          >
+            <span className="flex items-center gap-2 font-medium">
+              <ArrowRightLeft className="h-4 w-4 shrink-0" />
+              Tạo phiếu chuyển kho giữa các chi nhánh
+            </span>
+            <span className="text-orange-800" aria-hidden>
+              →
+            </span>
+          </Link>
+        </div>
         <Card className="max-w-2xl mx-auto">
           <CardHeader>
             <CardTitle className="flex items-center">

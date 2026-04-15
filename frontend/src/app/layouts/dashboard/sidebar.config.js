@@ -229,15 +229,10 @@ export const getDashboardNavigation = ({ user, authz, authorization }) => {
       "order.status.manage.warehouse",
     ]);
 
-  const canAccessWarehouseTransfer =
-    hasPermission("*") ||
-    hasAnyPermission([
-      "transfer.read",
-      "transfer.create",
-      "transfer.approve",
-      "transfer.ship",
-      "transfer.receive",
-    ]);
+  // Same scope as warehouse routes: anyone who can open the warehouse staff area
+  // should see "Chuyển kho" (inter-branch + internal). Fine-grained actions use
+  // transfer.* permissions on the page and API.
+  const canAccessWarehouseTransfer = canAccessWarehouseDashboard;
 
   // Section for warehouse-staff specific pages (not admin core)
   if (canAccessWarehouseDashboard) {
