@@ -11,7 +11,7 @@ import {
   PackagePlus,
   Percent,
   Receipt,
-  RefreshCw,
+  ArrowRightLeft,
   ShieldCheck,
   ShoppingBag,
   Smartphone,
@@ -262,8 +262,8 @@ export const getDashboardNavigation = ({ user, authz, authorization }) => {
   if (canAccessWarehouseTransfer) {
     addItem(items, {
       path: "/warehouse-staff/transfer",
-      icon: RefreshCw,
-      label: "Chuyển kho",
+      icon: ArrowRightLeft,
+      label: "Điều chuyển hàng",
     });
   }
 

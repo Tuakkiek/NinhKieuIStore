@@ -359,6 +359,20 @@ const TransferStockPage = () => {
       return;
     }
 
+    const skuSet = new Set();
+    for (const item of cleanedItems) {
+      if (skuSet.has(item.variantSku)) {
+        toast.error(
+          `SKU trùng lặp: ${item.variantSku}. Vui lòng gộp số lượng vào một dòng.`
+        );
+        return;
+      }
+      skuSet.add(item.variantSku);
+    }
+
+    // NOTE: Frontend pre-check only runs when fromStoreId matches the user's
+    // active branch context (activeBranchId). For cross-branch creates (e.g.,
+    // global admin), server-side validation remains the source of truth.
     const fromMatchesContext =
       activeBranchId &&
       String(transferForm.fromStoreId) === String(activeBranchId);
@@ -889,6 +903,12 @@ const TransferStockPage = () => {
                               "requestedQuantity",
                               event.target.value
                             )
+                          }
+                          className={
+                            item.requestedQuantity !== "" &&
+                            Number(item.requestedQuantity) <= 0
+                              ? "border-red-400 focus:ring-red-400"
+                              : ""
                           }
                         />
                       </div>

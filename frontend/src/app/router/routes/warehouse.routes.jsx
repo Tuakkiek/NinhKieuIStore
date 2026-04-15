@@ -1,5 +1,5 @@
 import React from "react";
-import { Route } from "react-router-dom";
+import { Navigate, Route } from "react-router-dom";
 import DashboardLayout from "@/app/layouts/dashboard/DashboardLayout";
 import ProtectedRoute from "@/app/router/guards/ProtectedRoute";
 import { DeviceManagementPage } from "@/features/afterSales";
@@ -60,6 +60,10 @@ const warehouseRoutes = (
       <Route path="/warehouse-staff/receive-goods" element={<ReceiveGoodsPage />} />
       <Route path="/warehouse-staff/pick-orders" element={<PickOrdersPage />} />
       <Route path="/warehouse-staff/transfer" element={<TransferStockPage />} />
+      <Route
+        path="/warehouse-staff/create-transfer"
+        element={<Navigate to="/warehouse-staff/transfer?tab=branch" replace />}
+      />
       <Route path="/warehouse-staff/devices" element={<DeviceManagementPage />} />
     </Route>
   </>
