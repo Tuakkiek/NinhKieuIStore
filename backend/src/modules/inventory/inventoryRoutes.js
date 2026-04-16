@@ -119,6 +119,38 @@ router.put(
   authorize(AUTHZ_ACTIONS.TRANSFER_RECEIVE, { scopeMode: "branch", requireActiveBranch: true, resourceType: "TRANSFER" }),
   confirmReceived
 );
+
+router.get(
+  "/debug/inventory-by-sku/:sku",
+  authorize(AUTHZ_ACTIONS.INVENTORY_READ, { scopeMode: "branch", requireActiveBranch: true, resourceType: "INVENTORY" }),
+  async (req, res) => {
+    try {
+      const { sku } = req.params;
+      const InventoryModel = (await import("../warehouse/Inventory.js")).default;
+      const WarehouseLocationModel = (await import("../warehouse/WarehouseLocation.js")).default;
+
+      const rows = await InventoryModel.find({ sku })
+        .select("storeId sku quantity locationId locationCode status productId")
+        .lean();
+
+      const grouped = {};
+      for (const row of rows) {
+        const location = row.locationId
+          ? await WarehouseLocationModel.findById(row.locationId)
+              .select("storeId locationCode status")
+              .lean()
+          : null;
+        const key = String(row.storeId || "unknown");
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push({ row, location });
+      }
+
+      return res.json({ success: true, sku, grouped, rows });
+    } catch (error) {
+      return res.status(500).json({ success: false, message: error.message });
+    }
+  }
+);
 router.put(
   "/transfers/:id/cancel",
   authorize(AUTHZ_ACTIONS.TRANSFER_CREATE, { scopeMode: "global", resourceType: "TRANSFER" }),

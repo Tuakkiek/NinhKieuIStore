@@ -53,6 +53,15 @@ const resolveSkuFromOrderItemSnapshot = (item = {}) =>
 const createOrderItemSkuResolver = ({ session = null, activeStoreId = "" } = {}) => {
   const skuCache = new Map();
 
+  const assertInventoryRowIntegrity = (row, location = null) => {
+    if (!row?.storeId) {
+      throw new Error("DATA_CORRUPTION: Inventory missing storeId");
+    }
+    if (location?.storeId && String(row.storeId) !== String(location.storeId)) {
+      throw new Error("DATA_CORRUPTION: store mismatch between inventory and location");
+    }
+  };
+
   const readCache = (key) => (skuCache.has(key) ? skuCache.get(key) : null);
   const writeCache = (key, sku) => {
     const normalized = normalizeSku(sku);
@@ -781,7 +790,15 @@ export const transferStock = async (req, res) => {
       storeId: activeStoreId,
       sku,
       locationId: fromLocation._id,
-    }).session(session);
+    })
+      .select("storeId sku quantity productId productName locationId locationCode status")
+      .session(session);
+    if (!fromInventory?.storeId) {
+      throw new Error("DATA_CORRUPTION: Inventory missing storeId");
+    }
+    if (String(fromInventory.storeId) !== String(fromLocation.storeId)) {
+      throw new Error("DATA_CORRUPTION: store mismatch between inventory and location");
+    }
     const sourceAvailableQty = Number.isFinite(fromInventory?.quantity) ? fromInventory.quantity : 0;
     if (!fromInventory || sourceAvailableQty < transferQty) {
       await session.abortTransaction();
@@ -809,7 +826,9 @@ export const transferStock = async (req, res) => {
       storeId: activeStoreId,
       sku,
       locationId: toLocation._id,
-    }).session(session);
+    })
+      .select("storeId sku quantity productId productName locationId locationCode status")
+      .session(session);
     if (toInventory) {
       const destinationQty = Number.isFinite(toInventory.quantity) ? toInventory.quantity : 0;
       toInventory.quantity = destinationQty + transferQty;
@@ -894,8 +913,16 @@ export const createCycleCount = async (req, res) => {
     const items = [];
 
     for (const loc of locations) {
-      const inventoryItems = await Inventory.find({ locationId: loc._id });
+      const inventoryItems = await Inventory.find({ storeId: activeStoreId, locationId: loc._id })
+        .select("storeId sku productId productName locationId locationCode quantity status")
+        .lean();
       for (const inv of inventoryItems) {
+        if (!inv?.storeId) {
+          throw new Error("DATA_CORRUPTION: Inventory missing storeId");
+        }
+        if (String(inv.storeId) !== String(loc.storeId)) {
+          throw new Error("DATA_CORRUPTION: store mismatch between inventory and location");
+        }
         items.push({
           sku: inv.sku,
           productId: inv.productId,
