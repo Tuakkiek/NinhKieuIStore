@@ -620,7 +620,7 @@ const OrderDetailPage = () => {
                         : "Giảm giá"}
                     </span>
                     <span>
-                      -{formatPrice(order.promotionDiscount || order.discount)}
+                      -{formatPrice((order.promotionDiscount || 0) + (order.discount || 0))}
                     </span>
                   </div>
                 )}
