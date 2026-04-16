@@ -248,15 +248,20 @@ const canManageOrderWorkflow = (req) =>
 const canManageWarehouseWorkflow = (req) =>
   requestHasPermission(req, AUTHZ_ACTIONS.ORDER_STATUS_MANAGE_WAREHOUSE, "branch");
 
+const hasTaskCapability = (req, resource = null) =>
+  requestHasPermission(req, AUTHZ_ACTIONS.ORDER_STATUS_MANAGE_TASK, "task", resource) ||
+  requestHasPermission(req, AUTHZ_ACTIONS.TASK_UPDATE, "task", resource);
+
+const hasPosCapability = (req) =>
+  requestHasPermission(req, AUTHZ_ACTIONS.ORDER_STATUS_MANAGE_POS, "branch");
+
 const canManageTaskWorkflow = (req, resource = null) =>
   !hasBroadOrderAccess(req) &&
   !canManageWarehouseWorkflow(req) &&
-  (requestHasPermission(req, AUTHZ_ACTIONS.ORDER_STATUS_MANAGE_TASK, "task", resource) ||
-    requestHasPermission(req, AUTHZ_ACTIONS.TASK_UPDATE, "task", resource));
+  hasTaskCapability(req, resource);
 
 const canManagePosWorkflow = (req) =>
-  !hasBroadOrderAccess(req) &&
-  requestHasPermission(req, AUTHZ_ACTIONS.ORDER_STATUS_MANAGE_POS, "branch");
+  !hasBroadOrderAccess(req) && hasPosCapability(req);
 
 const canAssignCarrierPermission = (req) =>
   requestHasPermission(
@@ -1483,7 +1488,12 @@ const buildFilter = (req) => {
   }
 
   if (canViewAssignedOrders(req, { assigneeId: req.user._id })) {
-    andClauses.push({ "shipperInfo.shipperId": req.user._id });
+    andClauses.push({
+      $or: [
+        { "shipperInfo.shipperId": req.user._id },
+        { "pickerInfo.pickerId": req.user._id },
+      ],
+    });
   }
 
   if (status) {
@@ -1597,7 +1607,8 @@ export const getAllOrders = async (req, res) => {
       Order.find(filter)
         .populate("customerId", "fullName email phoneNumber")
         .populate("userId", "fullName email phoneNumber")
-        .populate("shipperInfo.shipperId", "fullName phoneNumber")
+        .populate("shipperInfo.shipperId", "fullName email phoneNumber")
+        .populate("pickerInfo.pickerId", "fullName email phoneNumber")
         .sort(sortOptions)
         .skip(skip)
         .limit(Number(limit)),
@@ -2230,7 +2241,7 @@ export const updateOrderStatus = async (req, res) => {
       const assignedShipperId = order?.shipperInfo?.shipperId?.toString();
       const actorId = req.user?._id?.toString();
       const isAssignedShipperActor =
-        canManageTaskWorkflow(req, { assigneeId: req.user._id, userId: req.user._id }) &&
+        hasTaskCapability(req, { assigneeId: req.user._id, userId: req.user._id }) &&
         Boolean(assignedShipperId) &&
         assignedShipperId === actorId;
 
@@ -2280,8 +2291,8 @@ export const updateOrderStatus = async (req, res) => {
         canManageAll: hasBranchManagementPermission(req) || req?.authz?.isGlobalAdmin,
         canManageCoordinator: canManageOrderWorkflow(req),
         canManageWarehouse: canManageWarehouseWorkflow(req),
-        canManageTask: canManageTaskWorkflow(req, { assigneeId: req.user._id, userId: req.user._id }),
-        canManagePos: canManagePosWorkflow(req),
+        canManageTask: hasTaskCapability(req, { assigneeId: req.user._id, userId: req.user._id }),
+        canManagePos: hasPosCapability(req),
         canCompleteInStorePick: canCompleteInStorePick(req),
       },
     });
