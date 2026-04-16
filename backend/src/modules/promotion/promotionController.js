@@ -360,15 +360,15 @@ export const applyPromotion = async (req, res) => {
     }
 
     const isCustomer = isCustomerFlow;
-
-    // === CHỈ CUSTOMER MỚI BỊ GIỚI HẠN & LƯU LỊCH SỬ ===
+ 
+    // === CHỈ CUSTOMER MỚI KIỂM TRA ĐÃ DÙNG CHƯA (XEM TRƯỚC) ===
     if (isCustomer) {
       // Kiểm tra đã dùng chưa
       const alreadyUsed = await PromotionUsage.findOne({
         promotion: promotion._id,
         user: userId,
       }).session(session);
-
+ 
       if (alreadyUsed) {
         await session.abortTransaction();
         return res.status(400).json({
@@ -376,34 +376,10 @@ export const applyPromotion = async (req, res) => {
           message: "Bạn đã sử dụng mã khuyến mãi này rồi!",
         });
       }
-
-      // Tăng lượt dùng
-      await promotion.incrementUsage(session);
-
-      // Tính giảm giá trước khi lưu
-      const discountedTotal = promotion.applyDiscount(totalAmount);
-      const discountAmount = totalAmount - discountedTotal;
-
-      // Lưu lịch sử sử dụng
-      await PromotionUsage.create(
-        [{
-          promotion: promotion._id,
-          user: userId,
-          order: orderId || null,
-          orderTotal: totalAmount,
-          discountAmount,
-          snapshot: {
-            code: promotion.code,
-            name: promotion.name,
-            discountType: promotion.discountType,
-            discountValue: promotion.discountValue,
-            maxDiscountAmount: promotion.maxDiscountAmount,
-          },
-        }],
-        { session }
-      );
+      // Note: We NO LONGER increment usage or create Usage record here.
+      // That is now handled transactionally in createOrder.
     }
-
+ 
     // === Tính toán giảm giá (dùng cho cả customer và staff) ===
     const finalDiscountedTotal = promotion.applyDiscount(totalAmount);
     const finalDiscountAmount = totalAmount - finalDiscountedTotal;

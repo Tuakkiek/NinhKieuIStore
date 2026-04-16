@@ -15,6 +15,16 @@ import {
   DialogDescription,
 } from "@/shared/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/shared/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -42,6 +52,8 @@ const BrandManagementPage = () => {
     website: "",
     status: "ACTIVE",
   });
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [brandToDelete, setBrandToDelete] = useState(null);
 
   useEffect(() => {
     fetchBrands();
@@ -86,16 +98,24 @@ const BrandManagementPage = () => {
     setShowModal(true);
   };
 
-  const handleDelete = async (brandId) => {
-    if (!confirm("Bạn có chắc muốn xóa hãng này?")) return;
+  const handleDelete = (brand) => {
+    setBrandToDelete(brand);
+    setShowDeleteDialog(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!brandToDelete) return;
 
     try {
-      await brandAPI.delete(brandId);
+      await brandAPI.delete(brandToDelete._id);
       toast.success("Xóa hãng thành công");
       fetchBrands();
     } catch (error) {
       console.error("❌ Delete brand error:", error);
       toast.error(error.response?.data?.message || "Xóa hãng thất bại");
+    } finally {
+      setShowDeleteDialog(false);
+      setBrandToDelete(null);
     }
   };
 
@@ -228,7 +248,7 @@ const BrandManagementPage = () => {
                 <Button
                   variant="destructive"
                   size="sm"
-                  onClick={() => handleDelete(brand._id)}
+                  onClick={() => handleDelete(brand)}
                 >
                   <Trash2 className="w-4 h-4" />
                 </Button>
@@ -333,6 +353,31 @@ const BrandManagementPage = () => {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* DELETE CONFIRMATION */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xác nhận xóa hãng</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn có chắc muốn xóa hãng <strong>{brandToDelete?.name}</strong>?
+              <br />
+              <span className="text-red-600 font-medium">
+                Hành động này không thể hoàn tác và có thể ảnh hưởng đến sản phẩm liên quan.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Xác nhận xóa
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

@@ -39,6 +39,8 @@ import {
   recalculateProductAvailability,
   resolveVariantPricingSnapshot,
 } from "../product/productPricingService.js";
+import Promotion from "../promotion/Promotion.js";
+import PromotionUsage from "../promotion/PromotionUsage.js";
 import {
   canPurchaseForProductStatus,
   normalizeProductStatus,
@@ -454,15 +456,9 @@ const enrichOrderImages = (order) => {
 };
 
 const appendHistory = (order, status, updatedBy, note = "") => {
-  if (!Array.isArray(order.statusHistory)) {
+  if (!order.statusHistory) {
     order.statusHistory = [];
   }
-
-  const latest = order.statusHistory[order.statusHistory.length - 1];
-  if (latest?.status === status && latest?.note === note) {
-    return;
-  }
-
   order.statusHistory.push({
     status,
     updatedBy,
@@ -470,6 +466,65 @@ const appendHistory = (order, status, updatedBy, note = "") => {
     note,
   });
 };
+
+/**
+ * Revert promotion usage for an order
+ * Deletes PromotionUsage record and decrements Promotion usedCount
+ */
+async function revertPromotionUsage(order, session = null) {
+  if (!order?.appliedPromotion?.code) return;
+
+  const code = order.appliedPromotion.code;
+  const userId = order.userId || order.customerId;
+
+  omniLog.info("revertPromotionUsage: attempting reversal", {
+    orderId: order._id,
+    orderNumber: order.orderNumber,
+    code,
+    userId,
+  });
+
+  // 1. Find and delete the usage record
+  const usage = await PromotionUsage.findOneAndDelete(
+    { order: order._id },
+    { session }
+  );
+
+  if (usage) {
+    // 2. Decrement the promotion usedCount
+    await Promotion.findByIdAndUpdate(
+      usage.promotion,
+      { $inc: { usedCount: -1 } },
+      { session }
+    );
+
+    omniLog.info("revertPromotionUsage: success", {
+      orderId: order._id,
+      code,
+      usageId: usage._id,
+    });
+  } else {
+    // Fallback: search by code and user if order link is missing
+    const promotion = await Promotion.findOne({ code }).session(session);
+    if (promotion) {
+      const deletedUsage = await PromotionUsage.findOneAndDelete(
+        { promotion: promotion._id, user: userId },
+        { session }
+      );
+      if (deletedUsage) {
+        await Promotion.findByIdAndUpdate(
+          promotion._id,
+          { $inc: { usedCount: -1 } },
+          { session }
+        );
+        omniLog.info("revertPromotionUsage: success (fallback search)", {
+          orderId: order._id,
+          code,
+        });
+      }
+    }
+  }
+}
 
 const getActorName = (user) => {
   return (
@@ -1833,7 +1888,53 @@ export const createOrder = async (req, res) => {
 
     const tradeInDiscount = toNumber(tradeInInfo?.finalValue, 0);
     const explicitDiscount = toNumber(discount, 0);
-    const promotionDiscount = Math.max(explicitDiscount, 0);
+
+    let promotionDiscount = Math.max(explicitDiscount, 0);
+    let validatedPromotion = null;
+
+    if (promotionCode) {
+      const normalizedCode = String(promotionCode).trim().toUpperCase();
+      const promotion = await Promotion.findOne({ code: normalizedCode }).session(session);
+
+      if (!promotion) {
+        throw badRequest(`Mã khuyến mãi "${normalizedCode}" không tồn tại`);
+      }
+
+      if (!promotion.canBeUsed(subtotal)) {
+        const reasons = [];
+        if (!promotion.isActive) reasons.push("đã bị tắt");
+        const now = new Date();
+        if (now < promotion.startDate) reasons.push("chưa bắt đầu");
+        if (now > promotion.endDate) reasons.push("đã hết hạn");
+        if (promotion.usedCount >= promotion.usageLimit) reasons.push("hết lượt sử dụng");
+        if (subtotal < promotion.minOrderValue) {
+          reasons.push(`đơn tối thiểu ${promotion.minOrderValue.toLocaleString()}₫`);
+        }
+        throw badRequest(`Mã không khả dụng: ${reasons.join(", ")}`);
+      }
+
+      // Check if user has already used this promotion
+      const existingUsage = await PromotionUsage.findOne({
+        promotion: promotion._id,
+        user: req.user._id,
+      }).session(session);
+
+      if (existingUsage) {
+        throw badRequest("Bạn đã sử dụng mã khuyến mãi này rồi");
+      }
+
+      // Calculate discount amount from backend source of truth
+      const discountedSubtotal = promotion.applyDiscount(subtotal);
+      promotionDiscount = subtotal - discountedSubtotal;
+      validatedPromotion = promotion;
+
+      omniLog.info("createOrder: promotion applied", {
+        code: normalizedCode,
+        discountAmount: promotionDiscount,
+        subtotal
+      });
+    }
+
     const totalDiscount = promotionDiscount + tradeInDiscount;
 
     let finalShippingFee = toNumber(shippingFee, 0);
@@ -1897,7 +1998,9 @@ export const createOrder = async (req, res) => {
       discount: totalDiscount,
       // Item price already reflects merchandising/flash-sale price.
       // Do not subtract inferred list-price discount again at order level.
-      promotionDiscount: 0,
+      tradeInDiscount,
+      extraDiscount: 0,
+      promotionDiscount: promotionDiscount,
       total: finalTotal,
       totalAmount: finalTotal,
       notes: notes || note || "",
@@ -1921,13 +2024,35 @@ export const createOrder = async (req, res) => {
           : undefined,
       installmentInfo,
       tradeInInfo,
-      appliedPromotion: promotionCode
+      appliedPromotion: validatedPromotion
         ? {
-            code: promotionCode,
+            code: validatedPromotion.code,
             discountAmount: promotionDiscount,
           }
         : undefined,
     });
+
+    // ✅ RECORD PROMOTION USAGE
+    if (validatedPromotion) {
+      await validatedPromotion.incrementUsage(session);
+      await PromotionUsage.create(
+        [{
+          promotion: validatedPromotion._id,
+          user: req.user._id,
+          order: order._id,
+          orderTotal: subtotal,
+          discountAmount: promotionDiscount,
+          snapshot: {
+            code: validatedPromotion.code,
+            name: validatedPromotion.name,
+            discountType: validatedPromotion.discountType,
+            discountValue: validatedPromotion.discountValue,
+            maxDiscountAmount: validatedPromotion.maxDiscountAmount,
+          },
+        }],
+        { session }
+      );
+    }
 
     appendHistory(order, order.status, req.user._id, "Order created from checkout");
 
@@ -3543,6 +3668,9 @@ export const cancelOrder = async (req, res) => {
     });
 
     await restoreVariantStock(order.items, session);
+
+    // ✅ REVERT PROMOTION USAGE
+    await revertPromotionUsage(order, session);
 
     order.status = "CANCELLED";
     order.cancelledAt = new Date();

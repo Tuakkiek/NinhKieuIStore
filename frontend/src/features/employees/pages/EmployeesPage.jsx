@@ -29,6 +29,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/shared/ui/alert-dialog";
 import { ErrorMessage } from "@/shared/ui/ErrorMessage";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
@@ -222,6 +232,8 @@ const EmployeesPage = () => {
   const [primaryBranchId, setPrimaryBranchId] = useState("");
   const [preview, setPreview] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [employeeToDelete, setEmployeeToDelete] = useState(null);
 
   const granularEnabled = useMemo(() => isGranularFeatureEnabled(user), [user]);
   const isGlobalAdmin = useMemo(
@@ -793,14 +805,23 @@ const EmployeesPage = () => {
     }
   };
 
-  const removeEmployee = async (id) => {
-    if (!window.confirm("Xóa nhân viên này?")) return;
+  const removeEmployee = (employee) => {
+    setEmployeeToDelete(employee);
+    setShowDeleteDialog(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!employeeToDelete) return;
 
     try {
-      await userAPI.deleteEmployee(id);
+      await userAPI.deleteEmployee(employeeToDelete._id);
+      toast.success("Xóa nhân viên thành công");
       await fetchEmployees();
     } catch {
-      setError("Xóa thất bại");
+      setError("Xóa nhân viên thất bại");
+    } finally {
+      setShowDeleteDialog(false);
+      setEmployeeToDelete(null);
     }
   };
 
@@ -1209,7 +1230,7 @@ const EmployeesPage = () => {
                       <Unlock className="h-3.5 w-3.5" />
                     )}
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => removeEmployee(employee._id)}>
+                  <Button size="sm" variant="outline" onClick={() => removeEmployee(employee)}>
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
@@ -1305,6 +1326,31 @@ const EmployeesPage = () => {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* DELETE CONFIRMATION */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xác nhận xóa nhân viên</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn có chắc muốn xóa nhân viên <strong>{employeeToDelete?.fullName}</strong>?
+              <br />
+              <span className="text-red-600 font-medium">
+                Hành động này không thể hoàn tác và tài khoản này sẽ không thể đăng nhập được nữa.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Xác nhận xóa
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

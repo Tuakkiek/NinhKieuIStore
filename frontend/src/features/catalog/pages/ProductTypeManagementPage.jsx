@@ -2,6 +2,9 @@
 // FILE: frontend/src/pages/admin/ProductTypeManagementPage.jsx
 // ✅ Responsive UI - Quản lý loại sản phẩm với specs động
 // ============================================
+// FILE: frontend/src/pages/admin/ProductTypeManagementPage.jsx
+// ✅ Responsive UI - Quản lý loại sản phẩm với specs động
+// ============================================
 
 import React, { useState, useEffect } from "react";
 import { Button } from "@/shared/ui/button";
@@ -14,6 +17,16 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/shared/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/shared/ui/alert-dialog";
 import {
   Select,
   SelectContent,
@@ -61,6 +74,8 @@ const ProductTypeManagementPage = () => {
     },
     status: "ACTIVE",
   });
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [typeToDelete, setTypeToDelete] = useState(null);
 
   useEffect(() => {
     fetchProductTypes();
@@ -129,19 +144,32 @@ const ProductTypeManagementPage = () => {
     setShowModal(true);
   };
 
-  const handleDelete = async (productType) => {
-    const associatedProductsCount = Number(productType?.associatedProductsCount || 0);
+  const handleDelete = (productType) => {
+    const associatedProductsCount = Number(
+      productType?.associatedProductsCount || 0
+    );
     if (associatedProductsCount > 0) {
       toast.error(PRODUCT_TYPE_DELETE_BLOCKED_MESSAGE);
       return;
     }
-    if (!confirm("Bạn có chắc muốn xóa loại sản phẩm này?")) return;
+    setTypeToDelete(productType);
+    setShowDeleteDialog(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!typeToDelete) return;
+
     try {
-      await productTypeAPI.delete(productType._id);
+      await productTypeAPI.delete(typeToDelete._id);
       toast.success("Xóa loại sản phẩm thành công");
       fetchProductTypes();
     } catch (error) {
-      toast.error(error.response?.data?.message || "Xóa loại sản phẩm thất bại");
+      toast.error(
+        error.response?.data?.message || "Xóa loại sản phẩm thất bại"
+      );
+    } finally {
+      setShowDeleteDialog(false);
+      setTypeToDelete(null);
     }
   };
 
@@ -697,6 +725,32 @@ const ProductTypeManagementPage = () => {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* DELETE CONFIRMATION */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xác nhận xóa loại sản phẩm</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn có chắc muốn xóa loại sản phẩm{" "}
+              <strong>{typeToDelete?.name}</strong>?
+              <br />
+              <span className="text-red-600 font-medium">
+                Hành động này không thể hoàn tác.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Xác nhận xóa
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

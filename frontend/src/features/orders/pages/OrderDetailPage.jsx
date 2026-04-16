@@ -612,16 +612,19 @@ const OrderDetailPage = () => {
                       : formatPrice(order.shippingFee)}
                   </span>
                 </div>
-                {order.promotionDiscount > 0 && (
+                {(order.promotionDiscount > 0 || order.discount > 0) && (
                   <div className="flex justify-between text-sm text-green-600 font-medium">
                     <span>
-                      Giảm giá{" "}
-                      {order.appliedPromotion?.code &&
-                        `(${order.appliedPromotion.code})`}
+                      {order.promotionDiscount > 0 || order.appliedPromotion?.code
+                        ? `Khuyến mãi ${order.appliedPromotion?.code ? `(${order.appliedPromotion.code})` : ""}`
+                        : "Giảm giá"}
                     </span>
-                    <span>-{formatPrice(order.promotionDiscount)}</span>
+                    <span>
+                      -{formatPrice(order.promotionDiscount || order.discount)}
+                    </span>
                   </div>
                 )}
+
                 <div className="border-t pt-3">
                   <div className="flex justify-between text-lg font-bold">
                     <span>Tổng cộng</span>
