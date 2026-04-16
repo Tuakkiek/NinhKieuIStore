@@ -32,7 +32,7 @@ import {
 } from "@/features/auth/lib/authorization";
 
 const ROLE_LABELS = {
-  GLOBAL_ADMIN: "Quan tri vien toan he thong",
+  GLOBAL_ADMIN: "Quản trị viên toàn hệ thống",
   ADMIN: "Quan tri vien",
   BRANCH_ADMIN: "Quan tri chi nhanh",
   SALES_STAFF: "Nhan vien ban hang",

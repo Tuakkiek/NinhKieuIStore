@@ -10,6 +10,13 @@ import { syncUserRoleAssignments } from "../../authz/roleAssignmentService.js";
 // VALIDATION HELPERS
 // ============================================
 const normalizeString = (value) => String(value ?? "").trim();
+const isBcryptHash = (value) => /^\$2[aby]?\$\d{2}\$[./A-Za-z0-9]{53}$/.test(String(value || ""));
+
+const ensurePlaintextPasswordForSave = (password) => {
+  const normalized = normalizeString(password);
+  if (!normalized) return "";
+  return isBcryptHash(normalized) ? normalized : normalized;
+};
 
 const validatePhoneNumber = (phoneNumber) => {
   const normalizedPhoneNumber = normalizeString(phoneNumber);
@@ -369,6 +376,14 @@ export const login = async (req, res) => {
       return res.status(403).json({
         success: false,
         message: "Tài khoản đã bị khóa. Vui lòng liên hệ admin.",
+      });
+    }
+
+    if (!user.password) {
+      return res.status(500).json({
+        success: false,
+        code: "AUTHN_PASSWORD_MISSING",
+        message: "Tài khoản chưa được cấu hình mật khẩu hợp lệ",
       });
     }
 

@@ -13,6 +13,7 @@
     "migrate:authz-canonical": "node src/scripts/migrate-canonical-authorization.js",
     "migrate:authz-explicit-hardening": "node src/scripts/migrate-authz-explicit-hardening.js",
     "migrate:authz": "node src/scripts/migrate-user-authz.js",
+    "seed:demo-authz-users": "node src/scripts/seed-demo-authz-users.js",
     "verify:authz": "node src/scripts/verify-authz.js",
     "seed:permission-catalog": "node src/scripts/seed-permission-catalog.js",
     "migrate:user-permissions:backfill": "node src/scripts/backfill-user-permissions.js",

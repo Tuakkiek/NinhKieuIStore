@@ -58,22 +58,12 @@ export const resolveAccessContext = async (req, res, next) => {
     ? String(req.headers["x-simulate-branch-id"]).trim()
     : "";
 
-  const isBranchScopedStaff =
-    !isGlobalAdmin &&
-    !isCustomer &&
-    requiresBranchAssignment;
-
-  if (isBranchScopedStaff && allowedBranchIds.length === 0) {
-    return deny(
-      res,
-      "AUTHZ_NO_BRANCH_ASSIGNED",
-      "Staff account must have at least one active branch assignment",
-    );
-  }
+  const isBranchScopedStaff = !isGlobalAdmin && !isCustomer && requiresBranchAssignment;
+  const hasBranchAssignments = allowedBranchIds.length > 0;
 
   const defaultBranchId = isBranchScopedStaff ? String(allowedBranchIds[0] || "") : "";
 
-  if (isBranchScopedStaff && headerActiveBranch && !allowedBranchIds.includes(headerActiveBranch)) {
+  if (isBranchScopedStaff && headerActiveBranch && hasBranchAssignments && !allowedBranchIds.includes(headerActiveBranch)) {
     return deny(
       res,
       "AUTHZ_BRANCH_FORBIDDEN",
@@ -103,7 +93,7 @@ export const resolveAccessContext = async (req, res, next) => {
     activeBranchId = headerActiveBranch;
   }
 
-  if (!isGlobalAdmin && !isCustomer && !isShipper && activeBranchId) {
+  if (!isGlobalAdmin && !isCustomer && !isShipper && activeBranchId && hasBranchAssignments) {
     if (!allowedBranchIds.includes(activeBranchId)) {
       return deny(
         res,
@@ -118,7 +108,7 @@ export const resolveAccessContext = async (req, res, next) => {
     !isCustomer &&
     !isShipper &&
     requiresBranchAssignment &&
-    allowedBranchIds.length === 0;
+    !hasBranchAssignments;
 
   let scopeMode = "branch";
   if (isGlobalAdmin && !headerSimulatedBranch) {
