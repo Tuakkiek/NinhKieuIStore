@@ -19,6 +19,8 @@ const toPositiveInteger = (value) => {
 };
 
 const normalizeSku = (value) => String(value || "").trim();
+const normalizeSkuLoose = (value) => String(value || "").trim().replace(/^0+/, "");
+const escapeRegex = (value = "") => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const getAllowedBranchIds = (req) =>
   Array.isArray(req?.authz?.allowedBranchIds)
@@ -95,11 +97,85 @@ const buildInventoryFilter = ({ storeId, item }) => {
   return filter;
 };
 
-const isWarehouseStore = (store = {}) => {
-  const storeCode = String(store?.storeCode || "");
-  const storeId = String(store?.storeId || "");
-  return storeCode.startsWith("WH") || storeId === PHYSICAL_WAREHOUSE_STORE_ID;
+const resolvePhysicalAvailabilityForTransfer = async ({
+  storeId,
+  variantSku,
+  session,
+}) => {
+  const strictSku = normalizeSku(variantSku);
+  const looseSku = normalizeSkuLoose(variantSku);
+  const baseQuery = {
+    status: "GOOD",
+    quantity: { $gt: 0 },
+  };
+  const strictQuery = {
+    ...baseQuery,
+    sku: strictSku,
+  };
+
+  const filterRowsByLocationStore = async (rows) => {
+    const filtered = [];
+    for (const row of rows) {
+      if (!row?.locationId) continue;
+      const location = await WarehouseLocation.findById(row.locationId)
+        .select("storeId")
+        .lean()
+        .session(session)
+        .setOptions({ skipBranchIsolation: true });
+
+      if (location && String(location.storeId) === String(storeId)) {
+        filtered.push(row);
+      }
+    }
+    return filtered;
+  };
+
+  let queryUsed = strictQuery;
+  let inventoryRowsRaw = await Inventory.find(strictQuery)
+    .select("sku quantity status locationCode storeId locationId")
+    .lean()
+    .session(session)
+    .setOptions({ skipBranchIsolation: true });
+
+  let inventoryRows = await filterRowsByLocationStore(inventoryRowsRaw);
+
+  if (inventoryRows.length === 0 && looseSku && looseSku !== strictSku) {
+    const fallbackQuery = {
+      ...baseQuery,
+      sku: { $regex: `^0*${escapeRegex(looseSku)}$` },
+    };
+    const fallbackRowsRaw = await Inventory.find(fallbackQuery)
+      .select("sku quantity status locationCode storeId locationId")
+      .lean()
+      .session(session)
+      .setOptions({ skipBranchIsolation: true });
+
+    const fallbackRows = await filterRowsByLocationStore(fallbackRowsRaw);
+    const distinctSkus = Array.from(
+      new Set(fallbackRows.map((row) => normalizeSku(row?.sku)).filter(Boolean))
+    );
+
+    if (distinctSkus.length === 1) {
+      inventoryRows = fallbackRows;
+      queryUsed = fallbackQuery;
+    }
+  }
+
+  const physicalAvailable = inventoryRows.reduce(
+    (sum, row) => sum + (Number(row.quantity) || 0),
+    0
+  );
+
+  return {
+    strictSku,
+    looseSku,
+    queryUsed,
+    inventoryRows,
+    physicalAvailable,
+  };
 };
+
+const isWarehouseStore = () => true;
 
 const syncPhysicalSourceInventoryOnReceipt = async ({
   transfer,
@@ -107,39 +183,106 @@ const syncPhysicalSourceInventoryOnReceipt = async ({
   quantity,
   session,
 }) => {
-  if (!isWarehouseStore(transfer.fromStore) || quantity <= 0) return;
+  if (quantity <= 0) return;
 
-  let remainingQtyToPick = quantity;
   const query = {
-    storeId: transfer.fromStore.storeId,
     sku: item.variantSku,
-    locationCode: { $regex: new RegExp(`^${transfer.fromStore.storeCode}-`) },
+    storeId: transfer.fromStore.storeId,
+    status: "GOOD",
     quantity: { $gt: 0 },
   };
 
+  console.log("[transfer-debug][source-query]", { // eslint-disable-line no-console
+    modelName: Inventory.modelName,
+    collectionName: Inventory.collection?.name,
+    query,
+  });
+
+  const sourceRows = await Inventory.find(query)
+    .select("sku quantity status locationCode storeId locationId")
+    .lean()
+    .session(session)
+    .setOptions({ skipBranchIsolation: true });
+
+  console.log("[transfer-debug][physical-source-before]", { // eslint-disable-line no-console
+    storeId: String(transfer.fromStore.storeId || ""),
+    sku: String(item.variantSku || ""),
+    quantity,
+    matchedRows: sourceRows.length,
+    total: sourceRows.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0),
+    rows: sourceRows,
+  });
+
+  if (sourceRows.length === 0) {
+    throw new Error(`No source inventory found for SKU ${item.variantSku} in source store`);
+  }
+
+  let remainingQtyToPick = quantity;
   const physicalInventories = await Inventory.find(query)
-    .sort({ quantity: -1 })
-    .session(session);
+    .sort({ createdAt: 1, _id: 1 })
+    .session(session)
+    .setOptions({ skipBranchIsolation: true });
 
   for (const inventory of physicalInventories) {
     if (remainingQtyToPick <= 0) break;
 
+    const location = inventory.locationId
+      ? await WarehouseLocation.findById(inventory.locationId)
+          .select("storeId locationCode status currentLoad")
+          .lean()
+          .session(session)
+          .setOptions?.({ skipBranchIsolation: true })
+      : null;
+
+    console.log("[transfer-debug][source-row-pick]", { // eslint-disable-line no-console
+      inventory,
+      location,
+    });
+
+    if (!location || String(location.storeId) !== String(transfer.fromStore.storeId)) {
+      throw new Error("CRITICAL BUG: Source query returned wrong store inventory");
+    }
+
     const pickQty = Math.min(Number(inventory.quantity) || 0, remainingQtyToPick);
-    inventory.quantity -= pickQty;
+    if (pickQty <= 0) continue;
+
     remainingQtyToPick -= pickQty;
 
-    if (inventory.quantity === 0) {
-      await Inventory.deleteOne({ _id: inventory._id }).session(session);
+    const updatedQuantity = Math.max(0, (Number(inventory.quantity) || 0) - pickQty);
+    if (updatedQuantity <= 0) {
+      await Inventory.deleteOne({ _id: inventory._id })
+        .session(session)
+        .setOptions({ skipBranchIsolation: true });
     } else {
-      await inventory.save({ session });
+      await Inventory.updateOne(
+        { _id: inventory._id },
+        { $set: { quantity: updatedQuantity } }
+      )
+        .session(session)
+        .setOptions({ skipBranchIsolation: true });
     }
 
-    const location = await WarehouseLocation.findById(inventory.locationId).session(session);
-    if (location) {
-      location.currentLoad = Math.max(0, (location.currentLoad || 0) - pickQty);
-      await location.save({ session });
+    const locationDoc = await WarehouseLocation.findById(location._id).session(session);
+    if (locationDoc) {
+      locationDoc.currentLoad = Math.max(0, (locationDoc.currentLoad || 0) - pickQty);
+      await locationDoc.save({ session });
     }
   }
+
+  const afterRows = await Inventory.find(query)
+    .select("sku quantity status locationCode storeId locationId")
+    .lean()
+    .session(session)
+    .setOptions({ skipBranchIsolation: true });
+
+  console.log("[transfer-debug][physical-source-after]", { // eslint-disable-line no-console
+    storeId: String(transfer.fromStore.storeId || ""),
+    sku: String(item.variantSku || ""),
+    quantity,
+    matchedRows: afterRows.length,
+    total: afterRows.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0),
+    rows: afterRows,
+  });
 
   if (remainingQtyToPick > 0) {
     console.warn( // eslint-disable-line no-console
@@ -154,13 +297,32 @@ const syncPhysicalDestinationInventoryOnReceipt = async ({
   quantity,
   session,
 }) => {
-  if (!isWarehouseStore(transfer.toStore) || quantity <= 0) return;
+  if (quantity <= 0) return;
+
+  const query = {
+    storeId: transfer.toStore.storeId,
+    sku: item.variantSku,
+    status: "GOOD",
+  };
+
+  const beforeRows = await Inventory.find(query)
+    .select("sku quantity status locationCode storeId locationId")
+    .lean()
+    .session(session);
+
+  console.log("[transfer-debug][physical-destination-before]", { // eslint-disable-line no-console
+    storeId: String(transfer.toStore.storeId || ""),
+    sku: String(item.variantSku || ""),
+    quantity,
+    matchedRows: beforeRows.length,
+    total: beforeRows.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0),
+    rows: beforeRows,
+  });
 
   const targetLocation = await WarehouseLocation.findOne({
     storeId: transfer.toStore.storeId,
-    locationCode: { $regex: `^${transfer.toStore.storeCode}-` },
     status: "ACTIVE",
-  }).session(session);
+  }).sort({ createdAt: 1 }).session(session);
 
   if (!targetLocation) {
     const warnMsg = `[CANH BAO] Khong tim thay vi tri kho vat ly cho SKU ${item.variantSku} tai ${transfer.toStore.storeCode}.`;
@@ -173,10 +335,11 @@ const syncPhysicalDestinationInventoryOnReceipt = async ({
     storeId: transfer.toStore.storeId,
     sku: item.variantSku,
     locationId: targetLocation._id,
+    status: "GOOD",
   }).session(session);
 
   if (physicalInventory) {
-    physicalInventory.quantity += quantity;
+    physicalInventory.quantity = (Number(physicalInventory.quantity) || 0) + quantity;
     physicalInventory.lastReceived = new Date();
     await physicalInventory.save({ session });
   } else {
@@ -196,6 +359,20 @@ const syncPhysicalDestinationInventoryOnReceipt = async ({
 
   targetLocation.currentLoad = (targetLocation.currentLoad || 0) + quantity;
   await targetLocation.save({ session });
+
+  const afterRows = await Inventory.find(query)
+    .select("sku quantity status locationCode storeId locationId")
+    .lean()
+    .session(session);
+
+  console.log("[transfer-debug][physical-destination-after]", { // eslint-disable-line no-console
+    storeId: String(transfer.toStore.storeId || ""),
+    sku: String(item.variantSku || ""),
+    quantity,
+    matchedRows: afterRows.length,
+    total: afterRows.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0),
+    rows: afterRows,
+  });
 };
 
 const validateTransferItemsForRequest = async ({
@@ -242,7 +419,50 @@ const validateTransferItemsForRequest = async ({
       throw new Error(`Khong tim thay ton kho nguon cho SKU ${variantSku}`);
     }
 
-    const available = Number(sourceInventory.available) || 0;
+    const {
+      strictSku,
+      looseSku,
+      queryUsed,
+      inventoryRows,
+      physicalAvailable,
+    } = await resolvePhysicalAvailabilityForTransfer({
+      storeId: fromStoreId,
+      variantSku,
+      session,
+    });
+    const snapshotAvailable = Number(sourceInventory.available) || 0;
+    const available = physicalAvailable;
+
+    console.log("[transfer-debug][available-calc]", { // eslint-disable-line no-console
+      sku: variantSku,
+      normalizedStrictSku: strictSku,
+      normalizedLooseSku: looseSku,
+      quantity: Number(sourceInventory.quantity) || 0,
+      reserved: Number(sourceInventory.reserved) || 0,
+      locked: 0,
+      snapshotAvailable,
+      finalAvailable: available,
+    });
+    console.log("[transfer-debug][inventory-check]", { // eslint-disable-line no-console
+      sku: variantSku,
+      requestedQty: requestedQuantity,
+      availableQty: available,
+      snapshotAvailable,
+      sourceStoreInventoryId: String(sourceInventory._id || ""),
+      sourceStoreId: String(sourceInventory.storeId || ""),
+      queryUsed,
+      matchedRowsCount: inventoryRows.length,
+      rows: inventoryRows.map((row) => ({
+        sku: row.sku,
+        quantity: Number(row.quantity) || 0,
+        reserved: 0,
+        available: Number(row.quantity) || 0,
+        status: row.status,
+        locationCode: row.locationCode,
+        storeId: String(row.storeId || ""),
+      })),
+    });
+
     if (available < requestedQuantity) {
       throw new Error(
         `Khong du ton kha dung cho SKU ${variantSku}. Available: ${available}`
@@ -283,6 +503,13 @@ export const requestTransfer = async (req, res) => {
     }
 
     const { fromStoreId, toStoreId, items, reason, notes } = req.body;
+    console.log("[transfer-debug][request]", { // eslint-disable-line no-console
+      fromStoreId,
+      toStoreId,
+      reason,
+      notes,
+      items,
+    });
 
     if (!fromStoreId || !toStoreId) {
       throw new Error("Thieu thong tin cua hang nguon/dich");
@@ -509,6 +736,27 @@ export const confirmReceived = async (req, res) => {
     if (!transfer) {
       throw new Error("Khong tim thay transfer");
     }
+
+    console.log("[transfer-debug][receive-start]", { // eslint-disable-line no-console
+      transferId: String(transfer._id || ""),
+      transferNumber: transfer.transferNumber,
+      status: transfer.status,
+      items: transfer.items?.map((item) => ({
+        sku: item.variantSku,
+        quantity: Number(item.requestedQuantity) || 0,
+        receivedQuantity: Number(item.receivedQuantity) || 0,
+        confirmedQuantity: Number(item.confirmedQuantity) || 0,
+      })),
+    });
+
+    if (transfer.status === "COMPLETED") {
+      await session.abortTransaction();
+      return res.json({
+        success: true,
+        transfer: await getTransferForRead(transfer._id),
+      });
+    }
+
     if (transfer.status !== "IN_TRANSIT") {
       throw new Error(
         `Chi transfer IN_TRANSIT moi co the xac nhan nhan. Hien tai: ${transfer.status}`
@@ -527,8 +775,14 @@ export const confirmReceived = async (req, res) => {
     let totalMoved = 0;
 
     for (const item of transfer.items) {
-      const requestedQty = Number(item.requestedQuantity) || 0;
-      if (requestedQty <= 0) continue;
+      const transferredQty = Number(item.quantity || item.requestedQuantity) || 0;
+      if (transferredQty <= 0) continue;
+
+      console.log("[transfer-debug][receive-item]", { // eslint-disable-line no-console
+        transferId: String(transfer._id || ""),
+        sku: item.variantSku,
+        transferredQty,
+      });
 
       const sourceInventory = await StoreInventory.findOne(
         buildInventoryFilter({ storeId: transfer.fromStore.storeId, item })
@@ -540,20 +794,10 @@ export const confirmReceived = async (req, res) => {
         throw new Error(`Khong tim thay ton kho nguon cho SKU ${item.variantSku}`);
       }
 
-      const sourceQty = Number(sourceInventory.quantity) || 0;
-      if (sourceQty < requestedQty) {
-        throw new Error(
-          `Khong du ton kho nguon cho SKU ${item.variantSku}. Hien co: ${sourceQty}, Can: ${requestedQty}`
-        );
-      }
-
-      sourceInventory.quantity = sourceQty - requestedQty;
-      await sourceInventory.save({ session });
-
       await syncPhysicalSourceInventoryOnReceipt({
         transfer,
         item,
-        quantity: requestedQty,
+        quantity: transferredQty,
         session,
       });
 
@@ -574,9 +818,9 @@ export const confirmReceived = async (req, res) => {
       }
 
       destinationInventory.quantity =
-        (Number(destinationInventory.quantity) || 0) + requestedQty;
+        (Number(destinationInventory.quantity) || 0) + transferredQty;
       destinationInventory.lastRestockDate = new Date();
-      destinationInventory.lastRestockQuantity = requestedQty;
+      destinationInventory.lastRestockQuantity = transferredQty;
       await destinationInventory.save({ session });
 
       await syncPhysicalDestinationInventoryOnReceipt({
@@ -585,7 +829,7 @@ export const confirmReceived = async (req, res) => {
           ...item.toObject(),
           productId: item.productId || sourceInventory.productId,
         },
-        quantity: requestedQty,
+        quantity: transferredQty,
         session,
       });
 
@@ -599,7 +843,7 @@ export const confirmReceived = async (req, res) => {
             productName: item.name || item.variantSku,
             fromLocationCode: transfer.fromStore.storeCode,
             toLocationCode: transfer.toStore.storeCode,
-            quantity: requestedQty,
+            quantity: transferredQty,
             referenceType: "TRANSFER",
             referenceId: transfer.transferNumber,
             performedBy: req.user._id,
@@ -610,9 +854,9 @@ export const confirmReceived = async (req, res) => {
         { session }
       );
 
-      item.receivedQuantity = requestedQty;
-      item.confirmedQuantity = requestedQty;
-      totalMoved += requestedQty;
+      item.receivedQuantity = transferredQty;
+      item.confirmedQuantity = transferredQty;
+      totalMoved += transferredQty;
     }
 
     if (totalMoved <= 0) {

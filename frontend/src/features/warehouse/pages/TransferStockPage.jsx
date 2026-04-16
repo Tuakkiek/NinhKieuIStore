@@ -464,6 +464,14 @@ const TransferStockPage = () => {
 
     try {
       setBranchLoading(true);
+      console.log("[transfer-debug][frontend-request]", {
+        fromWarehouseId: transferForm.fromStoreId,
+        toWarehouseId: transferForm.toStoreId,
+        items: cleanedItems.map((item) => ({
+          sku: item.variantSku,
+          quantity: item.requestedQuantity,
+        })),
+      });
       await stockTransferAPI.request({
         fromStoreId: transferForm.fromStoreId,
         toStoreId: transferForm.toStoreId,
