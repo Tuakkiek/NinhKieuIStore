@@ -1946,7 +1946,11 @@ export const createOrder = async (req, res) => {
       });
     }
 
-    const totalDiscount = promotionDiscount + tradeInDiscount;
+    const manualDiscount = promotionCode ? 0 : explicitDiscount;
+    const finalOtherDiscount = manualDiscount + tradeInDiscount;
+    
+    // totalDiscount is used for local computation of finalTotal
+    const totalDiscountValue = promotionDiscount + tradeInDiscount;
 
     let finalShippingFee = toNumber(shippingFee, 0);
 
@@ -1971,7 +1975,7 @@ export const createOrder = async (req, res) => {
     */
     finalShippingFee = 0;
 
-    const computedTotal = Math.max(0, subtotal + finalShippingFee - totalDiscount);
+    const computedTotal = Math.max(0, subtotal + finalShippingFee - totalDiscountValue);
     const finalTotal = Number.isFinite(Number(total)) ? Number(total) : computedTotal;
 
     const orderNumber = generateOrderNumber();
@@ -2006,7 +2010,7 @@ export const createOrder = async (req, res) => {
       statusStage: initialStatusStage,
       subtotal,
       shippingFee: finalShippingFee,
-      discount: totalDiscount,
+      discount: finalOtherDiscount,
       // Item price already reflects merchandising/flash-sale price.
       // Do not subtract inferred list-price discount again at order level.
       tradeInDiscount,
