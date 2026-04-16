@@ -72,6 +72,8 @@ export const getDashboardNavigation = ({ user, authz, authorization }) => {
     isGlobalAdmin || permissionSet.has(normalizePermissionKey(key));
   const hasAnyPermission = (keys = []) =>
     isGlobalAdmin || keys.some((key) => hasPermission(key));
+  const hasAllPermissions = (keys = []) =>
+    isGlobalAdmin || keys.every((key) => hasPermission(key));
 
   const canManageUsers =
     hasPermission("*") ||
@@ -207,26 +209,19 @@ export const getDashboardNavigation = ({ user, authz, authorization }) => {
       "transfer.receive",
     ]);
 
-  const canAccessWarehouseProducts =
-    hasPermission("*") ||
-    hasAnyPermission([
-      "product.create",
-      "product.update",
-      "product.delete",
-      "product.read",
-    ]);
-
   const canAccessWarehouseReceive =
     hasPermission("*") ||
     hasAnyPermission(["warehouse.write", "inventory.write"]);
 
   const canAccessWarehousePick =
-    hasPermission("*") ||
-    hasAnyPermission([
+    hasAllPermissions([
       "orders.read",
       "warehouse.read",
-      "inventory.read",
+      "warehouse.write",
+    ]) &&
+    hasAnyPermission([
       "order.status.manage.warehouse",
+      "order.status.manage",
     ]);
 
   // Same scope as warehouse routes: anyone who can open the warehouse staff area

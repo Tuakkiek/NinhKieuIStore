@@ -24,28 +24,33 @@ import {
   TableRow,
 } from "@/shared/ui/table";
 import { api } from "@/shared/lib/http/httpClient";
+import { useAuthStore } from "@/features/auth";
 import { inventoryAPI, stockTransferAPI } from "@/features/inventory";
 import { orderAPI } from "@/features/orders";
 import { toast } from "sonner";
 
 const TRANSFER_STATUS_LABEL = {
-  PENDING: "Chờ xử lý",
-  APPROVED: "Đã duyệt",
-  REJECTED: "Từ chối",
+  CREATED: "Đã tạo - Chờ xác nhận",
+  WAITING_FOR_PICKUP: "Đang chuẩn bị hàng",
   IN_TRANSIT: "Đang vận chuyển",
-  RECEIVED: "Đã nhận",
   COMPLETED: "Hoàn thành",
   CANCELLED: "Đã hủy",
+  PENDING: "Chờ xử lý (cũ)",
+  APPROVED: "Đã duyệt (cũ)",
+  REJECTED: "Từ chối (cũ)",
+  RECEIVED: "Đã nhận (cũ)",
 };
 
 const TRANSFER_STATUS_BADGE_CLASS = {
+  CREATED: "bg-blue-100 text-blue-800",
+  WAITING_FOR_PICKUP: "bg-amber-100 text-amber-800",
+  IN_TRANSIT: "bg-indigo-100 text-indigo-800",
+  COMPLETED: "bg-green-100 text-green-800",
+  CANCELLED: "bg-zinc-200 text-zinc-800",
   PENDING: "bg-amber-100 text-amber-800",
   APPROVED: "bg-blue-100 text-blue-800",
   REJECTED: "bg-red-100 text-red-800",
-  IN_TRANSIT: "bg-indigo-100 text-indigo-800",
   RECEIVED: "bg-emerald-100 text-emerald-800",
-  COMPLETED: "bg-green-100 text-green-800",
-  CANCELLED: "bg-zinc-200 text-zinc-800",
 };
 
 const REPLENISHMENT_PRIORITY_BADGE_CLASS = {
@@ -109,6 +114,11 @@ const getTransferItemSummary = (items = []) => {
 
 const WarehouseStaffDashboard = () => {
   const navigate = useNavigate();
+  const authz = useAuthStore((state) => state.authz);
+  const userRole = useAuthStore((state) => state.user?.role);
+  const isGlobalAdmin = Boolean(
+    authz?.isGlobalAdmin || String(userRole || "").toUpperCase() === "GLOBAL_ADMIN"
+  );
 
   const [stats, setStats] = useState({
     pendingPOs: 0,
@@ -246,7 +256,7 @@ const WarehouseStaffDashboard = () => {
         pendingPOs: getTotalByPagination(posRes, "purchaseOrders"),
         todayReceipts: todayReceipts.length,
         pendingPicks,
-        pendingTransfers: transferRows.filter((row) => row.status === "PENDING")
+        pendingTransfers: transferRows.filter((row) => row.status === "CREATED")
           .length,
         inTransitTransfers: transferRows.filter(
           (row) => row.status === "IN_TRANSIT"
@@ -326,6 +336,7 @@ const WarehouseStaffDashboard = () => {
     `${item?.variantSku || "sku"}-${item?.toStore?.storeId || "store"}-${index}`;
 
   const canCreateTransferFromRecommendation = (item) => {
+    if (!isGlobalAdmin) return false;
     if (item?.type !== "INTER_STORE_TRANSFER") return false;
     if (!item?.fromStore?.storeId || !item?.toStore?.storeId) return false;
 
@@ -431,7 +442,7 @@ const WarehouseStaffDashboard = () => {
       {
         title: "Chờ Chuyển Kho",
         value: stats.pendingTransfers,
-        hint: "Yêu cầu cần phê duyệt",
+        hint: "Yêu cầu mới tạo",
         icon: ArrowRightLeft,
         className: "text-amber-600",
         iconWrapperClass: "bg-amber-100",

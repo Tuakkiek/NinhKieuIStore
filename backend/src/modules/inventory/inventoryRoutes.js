@@ -21,9 +21,8 @@ import {
   getTransferById,
   approveTransfer,
   rejectTransfer,
-  shipTransfer,
-  receiveTransfer,
-  completeTransfer,
+  confirmShipment,
+  confirmReceived,
   cancelTransfer,
 } from "./transferController.js";
 
@@ -99,37 +98,30 @@ router.get(
 );
 router.post(
   "/transfers/request",
-  authorize(AUTHZ_ACTIONS.TRANSFER_CREATE, { scopeMode: "branch", requireActiveBranch: true, resourceType: "TRANSFER" }),
+  authorize(AUTHZ_ACTIONS.TRANSFER_CREATE, { scopeMode: "global", resourceType: "TRANSFER" }),
   requestTransfer
 );
 router.put(
   "/transfers/:id/approve",
-  authorize(AUTHZ_ACTIONS.TRANSFER_APPROVE, { scopeMode: "branch", requireActiveBranch: true, resourceType: "TRANSFER" }),
   approveTransfer
 );
 router.put(
   "/transfers/:id/reject",
-  authorize(AUTHZ_ACTIONS.TRANSFER_APPROVE, { scopeMode: "branch", requireActiveBranch: true, resourceType: "TRANSFER" }),
   rejectTransfer
 );
 router.put(
-  "/transfers/:id/ship",
+  "/transfers/:id/confirm-shipment",
   authorize(AUTHZ_ACTIONS.TRANSFER_SHIP, { scopeMode: "branch", requireActiveBranch: true, resourceType: "TRANSFER" }),
-  shipTransfer
+  confirmShipment
 );
 router.put(
-  "/transfers/:id/receive",
+  "/transfers/:id/confirm-received",
   authorize(AUTHZ_ACTIONS.TRANSFER_RECEIVE, { scopeMode: "branch", requireActiveBranch: true, resourceType: "TRANSFER" }),
-  receiveTransfer
-);
-router.put(
-  "/transfers/:id/complete",
-  authorize(AUTHZ_ACTIONS.TRANSFER_APPROVE, { scopeMode: "branch", requireActiveBranch: true, resourceType: "TRANSFER" }),
-  completeTransfer
+  confirmReceived
 );
 router.put(
   "/transfers/:id/cancel",
-  authorize(AUTHZ_ACTIONS.TRANSFER_APPROVE, { scopeMode: "branch", requireActiveBranch: true, resourceType: "TRANSFER" }),
+  authorize(AUTHZ_ACTIONS.TRANSFER_CREATE, { scopeMode: "global", resourceType: "TRANSFER" }),
   cancelTransfer
 );
 

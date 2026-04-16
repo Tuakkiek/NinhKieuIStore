@@ -21,6 +21,9 @@ import ReplenishmentRecommendation from "../modules/inventory/ReplenishmentRecom
 import Notification from "../modules/notification/Notification.js";
 import OmnichannelEvent from "../modules/monitoring/OmnichannelEvent.js";
 import config from "../config/config.js";
+import Role from "../modules/auth/Role.js";
+import { ROLE_PERMISSIONS } from "../authz/actions.js";
+import { syncUserRoleAssignments } from "../authz/roleAssignmentService.js";
 
 const ROLES = [
   "ADMIN",
@@ -62,6 +65,32 @@ const mapRoleToAssignmentRole = (role) => {
   return normalized;
 };
 
+const ensureRoleDefinitions = async () => {
+  const roleKeys = [
+    "BRANCH_ADMIN",
+    "WAREHOUSE_MANAGER",
+    "WAREHOUSE_STAFF",
+    "ORDER_MANAGER",
+    "GLOBAL_ADMIN",
+  ];
+
+  for (const roleKey of roleKeys) {
+    await Role.findOneAndUpdate(
+      { key: roleKey },
+      {
+        key: roleKey,
+        name: roleKey,
+        description: `Test role ${roleKey}`,
+        permissions: ROLE_PERMISSIONS[roleKey] || [],
+        scopeType: roleKey === "GLOBAL_ADMIN" ? "GLOBAL" : "BRANCH",
+        isSystem: roleKey === "GLOBAL_ADMIN",
+        isActive: true,
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+  }
+};
+
 const createUserByRole = async ({ role, assignedStoreIds = [] }) => {
   const roleAssignments = assignedStoreIds.map((storeId, index) => ({
     storeId,
@@ -82,11 +111,22 @@ const createUserByRole = async ({ role, assignedStoreIds = [] }) => {
     branchAssignments: roleAssignments,
   });
 
+  await syncUserRoleAssignments({
+    user,
+    assignments: assignedStoreIds.map((storeId) => ({
+      roleKey: mapRoleToAssignmentRole(role),
+      scopeType: "BRANCH",
+      scopeRef: String(storeId),
+    })),
+    primaryBranchId: String(assignedStoreIds[0] || ""),
+    reason: "inventory_dashboard_test_seed",
+  });
+
   return user;
 };
 
 const createGlobalAdmin = async () => {
-  return User.create({
+  const user = await User.create({
     role: "GLOBAL_ADMIN",
     systemRoles: ["GLOBAL_ADMIN"],
     fullName: "GLOBAL_ADMIN User",
@@ -96,6 +136,14 @@ const createGlobalAdmin = async () => {
     status: "ACTIVE",
     authzVersion: 2,
   });
+
+  await syncUserRoleAssignments({
+    user,
+    assignments: [{ roleKey: "GLOBAL_ADMIN", scopeType: "GLOBAL", scopeRef: "" }],
+    reason: "inventory_dashboard_test_seed",
+  });
+
+  return user;
 };
 
 const createStore = async ({ name, code }) =>
@@ -232,7 +280,14 @@ const seedFixture = async () => {
     tokens: Object.fromEntries(
       [...ROLES, "GLOBAL_ADMIN"].map((role) => [
         role,
-        jwt.sign({ id: String(users[role]._id) }, JWT_SECRET, { expiresIn: "1h" }),
+        jwt.sign(
+          {
+            id: String(users[role]._id),
+            pv: Number(users[role].permissionsVersion || 1),
+          },
+          JWT_SECRET,
+          { expiresIn: "1h" }
+        ),
       ])
     ),
   };
@@ -276,6 +331,7 @@ before(
 
 beforeEach(async () => {
   await clearAllCollections();
+  await ensureRoleDefinitions();
   fixture = await seedFixture();
 });
 
@@ -291,19 +347,20 @@ after(
 
 test("role permissions matrix for targeted dashboard + transfer endpoints", async () => {
   const fakeTransferId = new mongoose.Types.ObjectId().toString();
+  const rolesToCheck = [...ROLES, "GLOBAL_ADMIN"];
 
   const cases = [
     {
       name: "GET /dashboard/replenishment",
       method: "get",
       path: "/api/inventory/dashboard/replenishment",
-      allowed: ["ADMIN", "WAREHOUSE_MANAGER", "WAREHOUSE_STAFF"],
+      allowed: ["ADMIN", "WAREHOUSE_MANAGER", "WAREHOUSE_STAFF", "GLOBAL_ADMIN"],
     },
     {
       name: "POST /dashboard/replenishment/run-snapshot",
       method: "post",
       path: "/api/inventory/dashboard/replenishment/run-snapshot",
-      allowed: ["ADMIN", "WAREHOUSE_MANAGER", "WAREHOUSE_STAFF"],
+      allowed: ["ADMIN", "WAREHOUSE_MANAGER", "WAREHOUSE_STAFF", "GLOBAL_ADMIN"],
       expectAllowedStatus: 200,
       body: {},
     },
@@ -311,61 +368,56 @@ test("role permissions matrix for targeted dashboard + transfer endpoints", asyn
       name: "GET /dashboard/predictions",
       method: "get",
       path: "/api/inventory/dashboard/predictions",
-      allowed: ["ADMIN", "WAREHOUSE_MANAGER", "WAREHOUSE_STAFF"],
+      allowed: ["ADMIN", "WAREHOUSE_MANAGER", "WAREHOUSE_STAFF", "GLOBAL_ADMIN"],
     },
     {
       name: "POST /transfers/request",
       method: "post",
       path: "/api/inventory/transfers/request",
-      allowed: ["ADMIN", "WAREHOUSE_MANAGER", "WAREHOUSE_STAFF"],
+      allowed: ["GLOBAL_ADMIN"],
       body: {},
     },
     {
       name: "PUT /transfers/:id/approve",
       method: "put",
       path: `/api/inventory/transfers/${fakeTransferId}/approve`,
-      allowed: ["ADMIN", "WAREHOUSE_MANAGER"],
-      body: { approvedItems: [] },
+      allowed: rolesToCheck,
+      expectAllowedStatus: 410,
+      body: {},
     },
     {
       name: "PUT /transfers/:id/reject",
       method: "put",
       path: `/api/inventory/transfers/${fakeTransferId}/reject`,
-      allowed: ["ADMIN", "WAREHOUSE_MANAGER"],
+      allowed: rolesToCheck,
+      expectAllowedStatus: 410,
       body: { reason: "Not needed" },
     },
     {
-      name: "PUT /transfers/:id/ship",
+      name: "PUT /transfers/:id/confirm-shipment",
       method: "put",
-      path: `/api/inventory/transfers/${fakeTransferId}/ship`,
-      allowed: ["ADMIN", "WAREHOUSE_MANAGER", "WAREHOUSE_STAFF"],
+      path: `/api/inventory/transfers/${fakeTransferId}/confirm-shipment`,
+      allowed: ["ADMIN", "WAREHOUSE_MANAGER", "WAREHOUSE_STAFF", "GLOBAL_ADMIN"],
       body: { trackingNumber: "TN", carrier: "Carrier" },
     },
     {
-      name: "PUT /transfers/:id/receive",
+      name: "PUT /transfers/:id/confirm-received",
       method: "put",
-      path: `/api/inventory/transfers/${fakeTransferId}/receive`,
-      allowed: ["ADMIN", "WAREHOUSE_MANAGER", "WAREHOUSE_STAFF"],
-      body: { receivedItems: [] },
-    },
-    {
-      name: "PUT /transfers/:id/complete",
-      method: "put",
-      path: `/api/inventory/transfers/${fakeTransferId}/complete`,
-      allowed: ["ADMIN", "WAREHOUSE_MANAGER"],
-      body: {},
+      path: `/api/inventory/transfers/${fakeTransferId}/confirm-received`,
+      allowed: ["ADMIN", "WAREHOUSE_MANAGER", "WAREHOUSE_STAFF", "GLOBAL_ADMIN"],
+      body: { notes: "Received" },
     },
     {
       name: "PUT /transfers/:id/cancel",
       method: "put",
       path: `/api/inventory/transfers/${fakeTransferId}/cancel`,
-      allowed: ["ADMIN", "WAREHOUSE_MANAGER"],
+      allowed: ["GLOBAL_ADMIN"],
       body: { reason: "Cancel test" },
     },
   ];
 
   for (const endpoint of cases) {
-    for (const role of ROLES) {
+    for (const role of rolesToCheck) {
       let req = request(app)[endpoint.method](endpoint.path).set(authHeader(role));
       if (endpoint.body !== undefined) {
         req = req.send(endpoint.body);
@@ -478,14 +530,12 @@ test("GET /dashboard/predictions returns demand analysis payload", async () => {
   );
 });
 
-test("transfer lifecycle: request -> approve -> ship -> receive -> complete", async () => {
+test("transfer lifecycle: request -> confirm-shipment -> confirm-received", async () => {
   const requestedQuantity = 5;
-  const approvedQuantity = 4;
-  const receivedQuantity = 3;
 
   const requestResponse = await request(app)
     .post("/api/inventory/transfers/request")
-    .set(authHeader("WAREHOUSE_STAFF"))
+    .set(authHeader("GLOBAL_ADMIN"))
     .send({
       fromStoreId: fixture.stores.sourceStore._id,
       toStoreId: fixture.stores.targetStore._id,
@@ -505,37 +555,22 @@ test("transfer lifecycle: request -> approve -> ship -> receive -> complete", as
     `request failed: ${JSON.stringify(requestResponse.body)}`
   );
   assert.equal(requestResponse.body.success, true);
-  assert.equal(requestResponse.body.transfer.status, "PENDING");
+  assert.equal(requestResponse.body.transfer.status, "CREATED");
 
   const transferId = requestResponse.body.transfer._id;
 
-  const approveResponse = await request(app)
-    .put(`/api/inventory/transfers/${transferId}/approve`)
-    .set(authHeader("WAREHOUSE_MANAGER"))
-    .send({
-      approvedItems: [
-        {
-          variantSku: fixture.variant.sku,
-          quantity: approvedQuantity,
-        },
-      ],
-    });
-
-  assert.equal(approveResponse.status, 200);
-  assert.equal(approveResponse.body.success, true);
-  assert.equal(approveResponse.body.transfer.status, "APPROVED");
-
-  const reservedSourceAfterApprove = await StoreInventory.findOne({
+  const sourceAfterCreate = await StoreInventory.findOne({
     storeId: fixture.stores.sourceStore._id,
     productId: fixture.product._id,
     variantSku: fixture.variant.sku,
   })
     .setOptions({ skipBranchIsolation: true })
     .lean();
-  assert.equal(reservedSourceAfterApprove.reserved, approvedQuantity);
+  assert.equal(sourceAfterCreate.quantity, 60);
+  assert.equal(sourceAfterCreate.reserved, 0);
 
   const shipResponse = await request(app)
-    .put(`/api/inventory/transfers/${transferId}/ship`)
+    .put(`/api/inventory/transfers/${transferId}/confirm-shipment`)
     .set(authHeader("WAREHOUSE_STAFF"))
     .send({
       trackingNumber: "TRK-123",
@@ -546,34 +581,36 @@ test("transfer lifecycle: request -> approve -> ship -> receive -> complete", as
   assert.equal(shipResponse.body.success, true);
   assert.equal(shipResponse.body.transfer.status, "IN_TRANSIT");
 
-  const sourceAfterShip = await StoreInventory.findOne({
+  const sourceAfterShipment = await StoreInventory.findOne({
     storeId: fixture.stores.sourceStore._id,
     productId: fixture.product._id,
     variantSku: fixture.variant.sku,
   })
     .setOptions({ skipBranchIsolation: true })
     .lean();
-  assert.equal(sourceAfterShip.quantity, 60 - approvedQuantity);
-  assert.equal(sourceAfterShip.reserved, 0);
+  assert.equal(sourceAfterShipment.quantity, 60);
+  assert.equal(sourceAfterShipment.reserved, 0);
 
   const receiveResponse = await request(app)
-    .put(`/api/inventory/transfers/${transferId}/receive`)
+    .put(`/api/inventory/transfers/${transferId}/confirm-received`)
     .set(authHeader("WAREHOUSE_STAFF"))
     .send({
-      receivedItems: [
-        {
-          variantSku: fixture.variant.sku,
-          quantity: receivedQuantity,
-          reason: "One unit damaged on arrival",
-        },
-      ],
-      notes: "Received with discrepancy",
+      notes: "Received in full",
     });
 
   assert.equal(receiveResponse.status, 200);
   assert.equal(receiveResponse.body.success, true);
-  assert.equal(receiveResponse.body.transfer.status, "RECEIVED");
-  assert.equal(receiveResponse.body.discrepancies.length, 1);
+  assert.equal(receiveResponse.body.transfer.status, "COMPLETED");
+
+  const sourceAfterReceive = await StoreInventory.findOne({
+    storeId: fixture.stores.sourceStore._id,
+    productId: fixture.product._id,
+    variantSku: fixture.variant.sku,
+  })
+    .setOptions({ skipBranchIsolation: true })
+    .lean();
+  assert.equal(sourceAfterReceive.quantity, 60 - requestedQuantity);
+  assert.equal(sourceAfterReceive.reserved, 0);
 
   const destinationAfterReceive = await StoreInventory.findOne({
     storeId: fixture.stores.targetStore._id,
@@ -582,24 +619,13 @@ test("transfer lifecycle: request -> approve -> ship -> receive -> complete", as
   })
     .setOptions({ skipBranchIsolation: true })
     .lean();
-  assert.equal(destinationAfterReceive.quantity, receivedQuantity);
-  assert.equal(destinationAfterReceive.available, receivedQuantity);
-
-  const completeResponse = await request(app)
-    .put(`/api/inventory/transfers/${transferId}/complete`)
-    .set(authHeader("ADMIN"))
-    .send({
-      notes: "Discrepancy reviewed and accepted",
-    });
-
-  assert.equal(completeResponse.status, 200);
-  assert.equal(completeResponse.body.success, true);
-  assert.equal(completeResponse.body.transfer.status, "COMPLETED");
+  assert.equal(destinationAfterReceive.quantity, requestedQuantity);
+  assert.equal(destinationAfterReceive.available, requestedQuantity);
 
   const transfer = await StockTransfer.findById(transferId).lean();
   assert.equal(transfer.status, "COMPLETED");
-  assert.ok(Array.isArray(transfer.discrepancies));
-  assert.equal(transfer.discrepancies.length, 1);
+  assert.equal(transfer.items[0].confirmedQuantity, requestedQuantity);
+  assert.equal(transfer.items[0].receivedQuantity, requestedQuantity);
 
   const movements = await StockMovement.find({
     referenceType: "TRANSFER",
@@ -608,46 +634,14 @@ test("transfer lifecycle: request -> approve -> ship -> receive -> complete", as
     .sort({ createdAt: 1 })
     .lean();
 
-  assert.equal(movements.length, 2);
-  assert.equal(movements[0].quantity, approvedQuantity);
-  assert.equal(movements[1].quantity, receivedQuantity);
+  assert.equal(movements.length, 1);
+  assert.equal(movements[0].quantity, requestedQuantity);
 });
 
-test("transfer lifecycle supports reject and cancel with reserved rollback", async () => {
-  const rejectRequestResponse = await request(app)
+test("deprecated approve/reject endpoints return 410 and cancel leaves stock untouched", async () => {
+  const requestResponse = await request(app)
     .post("/api/inventory/transfers/request")
-    .set(authHeader("WAREHOUSE_STAFF"))
-    .send({
-      fromStoreId: fixture.stores.sourceStore._id,
-      toStoreId: fixture.stores.targetStore._id,
-      reason: "BALANCE",
-      items: [
-        {
-          variantSku: fixture.variant.sku,
-          requestedQuantity: 2,
-        },
-      ],
-    });
-
-  assert.equal(
-    rejectRequestResponse.status,
-    201,
-    `request failed: ${JSON.stringify(rejectRequestResponse.body)}`
-  );
-
-  const rejectResponse = await request(app)
-    .put(`/api/inventory/transfers/${rejectRequestResponse.body.transfer._id}/reject`)
-    .set(authHeader("WAREHOUSE_MANAGER"))
-    .send({
-      reason: "Destination overstocked",
-    });
-
-  assert.equal(rejectResponse.status, 200);
-  assert.equal(rejectResponse.body.transfer.status, "REJECTED");
-
-  const cancelRequestResponse = await request(app)
-    .post("/api/inventory/transfers/request")
-    .set(authHeader("WAREHOUSE_STAFF"))
+    .set(authHeader("GLOBAL_ADMIN"))
     .send({
       fromStoreId: fixture.stores.sourceStore._id,
       toStoreId: fixture.stores.targetStore._id,
@@ -660,27 +654,20 @@ test("transfer lifecycle supports reject and cancel with reserved rollback", asy
       ],
     });
 
-  assert.equal(
-    cancelRequestResponse.status,
-    201,
-    `cancel request failed: ${JSON.stringify(cancelRequestResponse.body)}`
-  );
-  const cancelTransferId = cancelRequestResponse.body.transfer._id;
+  assert.equal(requestResponse.status, 201);
+  const transferId = requestResponse.body.transfer._id;
 
-  const approveForCancelResponse = await request(app)
-    .put(`/api/inventory/transfers/${cancelTransferId}/approve`)
+  const approveResponse = await request(app)
+    .put(`/api/inventory/transfers/${transferId}/approve`)
+    .set(authHeader("WAREHOUSE_MANAGER"))
+    .send({});
+  assert.equal(approveResponse.status, 410);
+
+  const rejectResponse = await request(app)
+    .put(`/api/inventory/transfers/${transferId}/reject`)
     .set(authHeader("ADMIN"))
-    .send({
-      approvedItems: [
-        {
-          variantSku: fixture.variant.sku,
-          quantity: 2,
-        },
-      ],
-    });
-
-  assert.equal(approveForCancelResponse.status, 200);
-  assert.equal(approveForCancelResponse.body.transfer.status, "APPROVED");
+    .send({ reason: "Deprecated path" });
+  assert.equal(rejectResponse.status, 410);
 
   const sourceBeforeCancel = await StoreInventory.findOne({
     storeId: fixture.stores.sourceStore._id,
@@ -689,11 +676,12 @@ test("transfer lifecycle supports reject and cancel with reserved rollback", asy
   })
     .setOptions({ skipBranchIsolation: true })
     .lean();
-  assert.equal(sourceBeforeCancel.reserved, 2);
+  assert.equal(sourceBeforeCancel.quantity, 60);
+  assert.equal(sourceBeforeCancel.reserved, 0);
 
   const cancelResponse = await request(app)
-    .put(`/api/inventory/transfers/${cancelTransferId}/cancel`)
-    .set(authHeader("WAREHOUSE_MANAGER"))
+    .put(`/api/inventory/transfers/${transferId}/cancel`)
+    .set(authHeader("GLOBAL_ADMIN"))
     .send({
       reason: "Cancelled for test",
     });
@@ -708,6 +696,7 @@ test("transfer lifecycle supports reject and cancel with reserved rollback", asy
   })
     .setOptions({ skipBranchIsolation: true })
     .lean();
+  assert.equal(sourceAfterCancel.quantity, 60);
   assert.equal(sourceAfterCancel.reserved, 0);
 });
 

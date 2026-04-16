@@ -27,23 +27,27 @@ import {
 } from "@/shared/ui/table";
 
 const TRANSFER_STATUS_LABEL = {
-  PENDING: "Chờ xử lý",
-  APPROVED: "Đã duyệt",
-  REJECTED: "Từ chối",
+  CREATED: "Đã tạo - Chờ xác nhận",
+  WAITING_FOR_PICKUP: "Đang chuẩn bị hàng",
   IN_TRANSIT: "Đang vận chuyển",
-  RECEIVED: "Đã nhận",
   COMPLETED: "Hoàn thành",
   CANCELLED: "Đã hủy",
+  PENDING: "Chờ xử lý (cũ)",
+  APPROVED: "Đã duyệt (cũ)",
+  REJECTED: "Từ chối (cũ)",
+  RECEIVED: "Đã nhận (cũ)",
 };
 
 const TRANSFER_STATUS_BADGE_CLASS = {
+  CREATED: "bg-blue-100 text-blue-800",
+  WAITING_FOR_PICKUP: "bg-amber-100 text-amber-800",
+  IN_TRANSIT: "bg-indigo-100 text-indigo-800",
+  COMPLETED: "bg-green-100 text-green-800",
+  CANCELLED: "bg-zinc-200 text-zinc-800",
   PENDING: "bg-amber-100 text-amber-800",
   APPROVED: "bg-blue-100 text-blue-800",
   REJECTED: "bg-red-100 text-red-800",
-  IN_TRANSIT: "bg-indigo-100 text-indigo-800",
   RECEIVED: "bg-emerald-100 text-emerald-800",
-  COMPLETED: "bg-green-100 text-green-800",
-  CANCELLED: "bg-zinc-200 text-zinc-800",
 };
 
 const RISK_LABEL = {
@@ -267,8 +271,8 @@ const InventoryDashboard = () => {
       },
       {
         title: "Chờ chuyển kho",
-        value: transfers.filter((item) => item.status === "PENDING").length,
-        hint: "Chờ duyệt",
+        value: transfers.filter((item) => item.status === "CREATED").length,
+        hint: "Mới tạo",
         icon: Truck,
         iconWrap: "bg-amber-100",
         textClass: "text-amber-700",

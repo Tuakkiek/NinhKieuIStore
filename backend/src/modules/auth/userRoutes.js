@@ -36,7 +36,12 @@ const resolveUserScopeMode = (req) => (req.authz?.isGlobalAdmin ? "global" : "br
 const requireUsersRead = [
   resolveAccessContext,
   authorize(null, {
-    anyOf: [AUTHZ_ACTIONS.USERS_READ_BRANCH, AUTHZ_ACTIONS.ORDERS_READ],
+    anyOf: [
+      AUTHZ_ACTIONS.USERS_READ_BRANCH,
+      AUTHZ_ACTIONS.USERS_MANAGE_BRANCH,
+      AUTHZ_ACTIONS.USERS_MANAGE_GLOBAL,
+      AUTHZ_ACTIONS.ORDERS_READ,
+    ],
     scopeMode: resolveUserScopeMode,
     requireActiveBranchFor: ["branch"],
     resourceType: "USER",
@@ -45,7 +50,8 @@ const requireUsersRead = [
 
 const requireUsersManage = [
   resolveAccessContext,
-  authorize(AUTHZ_ACTIONS.USERS_MANAGE_BRANCH, {
+  authorize(null, {
+    anyOf: [AUTHZ_ACTIONS.USERS_MANAGE_BRANCH, AUTHZ_ACTIONS.USERS_MANAGE_GLOBAL],
     scopeMode: resolveUserScopeMode,
     requireActiveBranchFor: ["branch"],
     resourceType: "USER",

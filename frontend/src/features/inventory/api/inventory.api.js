@@ -28,11 +28,10 @@ export const stockTransferAPI = {
   getAll: (params = {}) => api.get("/inventory/transfers", { params }),
   getById: (id) => api.get(`/inventory/transfers/${id}`),
   request: (data) => api.post("/inventory/transfers/request", data),
-  approve: (id, data = {}) => api.put(`/inventory/transfers/${id}/approve`, data),
-  reject: (id, data = {}) => api.put(`/inventory/transfers/${id}/reject`, data),
-  ship: (id, data = {}) => api.put(`/inventory/transfers/${id}/ship`, data),
-  receive: (id, data = {}) => api.put(`/inventory/transfers/${id}/receive`, data),
-  complete: (id, data = {}) => api.put(`/inventory/transfers/${id}/complete`, data),
+  confirmShipment: (id, data = {}) =>
+    api.put(`/inventory/transfers/${id}/confirm-shipment`, data),
+  confirmReceived: (id, data = {}) =>
+    api.put(`/inventory/transfers/${id}/confirm-received`, data),
   cancel: (id, data = {}) => api.put(`/inventory/transfers/${id}/cancel`, data),
 };
 

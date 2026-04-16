@@ -8,8 +8,10 @@ import WarehouseLocation from "./WarehouseLocation.js";
 import StockMovement from "./StockMovement.js";
 import CycleCount from "./CycleCount.js";
 import Order from "../order/Order.js";
+import { UniversalVariant } from "../product/UniversalProduct.js";
 import mongoose from "mongoose";
 import {
+  getActiveWarehouseBranchId,
   ensureWarehouseWriteBranchId,
   resolveWarehouseStore,
 } from "./warehouseContext.js";
@@ -29,15 +31,146 @@ const toPositiveInteger = (value) => {
   return Math.floor(parsed);
 };
 
-const normalizeSku = (value) => String(value || "").trim();
+const normalizeSkuStrict = (value) => String(value || "").trim();
+const normalizeSkuLoose = (value) => String(value || "").trim().replace(/^0+/, "");
+const normalizeSku = normalizeSkuStrict;
+const normalizeObjectId = (value) => String(value || "").trim();
 const requestHasPermission = (req, permission, mode = "branch") =>
   hasPermission(req?.authz, permission, { mode });
+const escapeRegex = (value = "") => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const resolveSkuFromOrderItemSnapshot = (item = {}) =>
+  normalizeSku(
+    item?.sku ||
+      item?.variantSku ||
+      item?.productSku ||
+      item?.variant?.sku ||
+      item?.product?.sku ||
+      item?.snapshot?.variantSku ||
+      item?.snapshot?.sku
+  );
+
+const createOrderItemSkuResolver = ({ session = null, activeStoreId = "" } = {}) => {
+  const skuCache = new Map();
+
+  const readCache = (key) => (skuCache.has(key) ? skuCache.get(key) : null);
+  const writeCache = (key, sku) => {
+    const normalized = normalizeSku(sku);
+    skuCache.set(key, normalized);
+    return normalized;
+  };
+
+  const findSkuByVariantId = async (variantId) => {
+    const normalizedVariantId = normalizeObjectId(variantId);
+    if (!normalizedVariantId) return "";
+
+    const cacheKey = `variant:${normalizedVariantId}`;
+    const cached = readCache(cacheKey);
+    if (cached !== null) return cached;
+
+    const query = UniversalVariant.findById(normalizedVariantId).select("sku");
+    if (session) {
+      query.session(session);
+    }
+
+    const variant = await query;
+    return writeCache(cacheKey, variant?.sku);
+  };
+
+  const findSkuByProductInventory = async (productId) => {
+    const normalizedProductId = normalizeObjectId(productId);
+    if (!normalizedProductId) return "";
+
+    const cacheKey = `inventory-product:${activeStoreId || "auto"}:${normalizedProductId}`;
+    const cached = readCache(cacheKey);
+    if (cached !== null) return cached;
+
+    const inventoryFilter = {
+      productId: normalizedProductId,
+      quantity: { $gt: 0 },
+      status: "GOOD",
+    };
+    if (activeStoreId) {
+      inventoryFilter.storeId = activeStoreId;
+    }
+
+    const query = Inventory.find(inventoryFilter)
+      .select("sku quantity")
+      .sort({ quantity: -1 })
+      .limit(10);
+    if (session) {
+      query.session(session);
+    }
+
+    const inventoryRows = await query;
+    const distinctSkus = Array.from(
+      new Set(
+        (Array.isArray(inventoryRows) ? inventoryRows : [])
+          .map((row) => normalizeSku(row?.sku))
+          .filter(Boolean)
+      )
+    );
+
+    if (distinctSkus.length !== 1) {
+      return writeCache(cacheKey, "");
+    }
+
+    return writeCache(cacheKey, distinctSkus[0]);
+  };
+
+  return async (item = {}) => {
+    const directSku = resolveSkuFromOrderItemSnapshot(item);
+    if (directSku) return directSku;
+
+    const byVariant = await findSkuByVariantId(item?.variantId);
+    if (byVariant) return byVariant;
+
+    const byProductInventory = await findSkuByProductInventory(item?.productId);
+    if (byProductInventory) return byProductInventory;
+
+    return "";
+  };
+};
+
+const resolveUnpickableReason = ({
+  hasAnyInventoryRows,
+  hasAnyStoreRows,
+  hasPositiveQuantityRows,
+  hasGoodAndPositiveRows,
+  hasGoodAndPositiveWithLocationRows,
+  hasOtherStoreRows,
+}) => {
+  if (!hasAnyInventoryRows) return "NO_INVENTORY_FOR_SKU";
+  if (!hasAnyStoreRows && hasOtherStoreRows) return "STORE_MISMATCH";
+  if (!hasPositiveQuantityRows) return "ZERO_QUANTITY";
+  if (!hasGoodAndPositiveRows) return "NOT_GOOD_STATUS";
+  if (!hasGoodAndPositiveWithLocationRows) return "MISSING_LOCATION_CODE";
+  return "NO_INVENTORY_FOR_SKU";
+};
 
 const sumQuantityBySku = (items = [], skuSelector) => {
   const result = new Map();
 
   for (const item of items) {
     const sku = normalizeSku(skuSelector(item));
+    const quantity = Number(item?.quantity) || 0;
+    if (!sku || quantity <= 0) continue;
+
+    result.set(sku, (result.get(sku) || 0) + quantity);
+  }
+
+  return result;
+};
+
+const buildRequiredQuantityBySku = async (orderItems = [], resolveOrderItemSku) => {
+  const result = new Map();
+  const safeItems = Array.isArray(orderItems) ? orderItems : [];
+
+  for (const item of safeItems) {
+    const resolvedSku = resolveOrderItemSku
+      ? await resolveOrderItemSku(item)
+      : item?.sku || item?.variantSku;
+    const sku = normalizeSku(resolvedSku);
     const quantity = Number(item?.quantity) || 0;
     if (!sku || quantity <= 0) continue;
 
@@ -74,8 +207,12 @@ const upsertPickedItems = (items = [], { sku, quantity, locationCode }) => {
   return pickedItems;
 };
 
-const isOrderPickCompleted = (orderItems = [], pickedItems = []) => {
-  const requiredBySku = sumQuantityBySku(orderItems, (item) => item?.sku || item?.variantSku);
+const isOrderPickCompleted = async (
+  orderItems = [],
+  pickedItems = [],
+  { resolveOrderItemSku = null } = {}
+) => {
+  const requiredBySku = await buildRequiredQuantityBySku(orderItems, resolveOrderItemSku);
   if (requiredBySku.size === 0) return false;
 
   const pickedBySku = sumQuantityBySku(pickedItems, (item) => item?.sku);
@@ -112,6 +249,7 @@ const appendStatusHistory = (order, status, updatedBy, note) => {
 export const getPickList = async (req, res) => {
   try {
     const { orderId } = req.params;
+    const activeStoreId = getActiveWarehouseBranchId(req);
 
     const order = await Order.findById(orderId);
     if (!order) {
@@ -122,26 +260,151 @@ export const getPickList = async (req, res) => {
     }
 
     const pickList = [];
+    const resolveOrderItemSku = createOrderItemSkuResolver({ activeStoreId });
     const serializedFlags = await resolveSerializedItemFlags({
       items: order.items,
     });
 
-    for (const item of order.items) {
-      const sku = item.sku || item.variantSku;
-      if (!sku) continue;
+    for (const item of Array.isArray(order.items) ? order.items : []) {
+      const sku = await resolveOrderItemSku(item);
+      const strictSku = normalizeSkuStrict(sku);
+      const looseSku = normalizeSkuLoose(sku);
+      const itemId = String(item?._id || "");
       const itemFlag = serializedFlags.get(String(item.productId || "")) || {};
+      const productName = item?.name || item?.productName || "Unnamed item";
+      const requiredQty = Number(item?.quantity) || 0;
 
-      // Tìm các vị trí có hàng
-      const inventoryItems = await Inventory.find({
-        sku,
-        quantity: { $gt: 0 },
-        status: "GOOD",
-      })
+      if (!sku) {
+        pickList.push({
+          sku: "",
+          productName,
+          requiredQty,
+          serializedTrackingEnabled: Boolean(itemFlag.isSerialized),
+          assignedDevicesCount: Array.isArray(item.deviceAssignments)
+            ? item.deviceAssignments.length
+            : 0,
+          locations: [],
+          fulfilled: false,
+          reason: "SKU_NOT_RESOLVED",
+        });
+        console.log("[pick-debug]", {
+          stage: "pick-list",
+          orderId: String(order._id),
+          itemId,
+          originalSku: sku,
+          normalizedSku: strictSku,
+          inventoryFound: false,
+          reason: "SKU_NOT_RESOLVED",
+        });
+        continue;
+      }
+
+      // Step 1: strict SKU + active store scope for primary picking candidates.
+      const inventoryFilter = { sku: strictSku };
+      if (activeStoreId) {
+        inventoryFilter.storeId = activeStoreId;
+      }
+      console.log("[pick-debug]", {
+        stage: "pick-list",
+        subStage: "before-inventory-query",
+        orderId: String(order._id),
+        itemId,
+        originalSku: sku,
+        normalizedSku: strictSku,
+        looseSku,
+        activeStoreId,
+        inventoryFilter,
+      });
+
+      let scopedRows = await Inventory.find(inventoryFilter)
         .populate("locationId", "locationCode zoneName aisle shelf bin")
         .sort({ quantity: -1 });
+      let matchedSku = strictSku;
 
-      let remainingQty = item.quantity;
+      // Step 2: SAFE loose fallback only when strict has no rows and loose can identify exactly one SKU.
+      if (scopedRows.length === 0 && looseSku && looseSku !== strictSku) {
+        const fallbackFilter = {
+          sku: { $regex: `^0*${escapeRegex(looseSku)}$` },
+        };
+        if (activeStoreId) {
+          fallbackFilter.storeId = activeStoreId;
+        }
+        const fallbackRows = await Inventory.find(fallbackFilter)
+          .populate("locationId", "locationCode zoneName aisle shelf bin")
+          .sort({ quantity: -1 });
+        const distinctFallbackSkus = Array.from(
+          new Set(fallbackRows.map((row) => normalizeSkuStrict(row?.sku)).filter(Boolean))
+        );
+        if (distinctFallbackSkus.length === 1) {
+          scopedRows = fallbackRows;
+          matchedSku = distinctFallbackSkus[0];
+          console.log("[pick-debug]", {
+            stage: "pick-list",
+            subStage: "sku-fallback-used",
+            orderId: String(order._id),
+            itemId,
+            strictSku,
+            looseSku,
+            matchedSku,
+          });
+        } else {
+          console.log("[pick-debug]", {
+            stage: "pick-list",
+            subStage: "sku-fallback-rejected",
+            orderId: String(order._id),
+            itemId,
+            strictSku,
+            looseSku,
+            distinctFallbackSkus,
+          });
+        }
+      }
+
+      // Diagnostics set to explain exactly why item became unpickable.
+      const globalRowsFilter = { sku: matchedSku };
+      const scopedRowsFilter = { sku: matchedSku };
+      if (activeStoreId) {
+        scopedRowsFilter.storeId = activeStoreId;
+      }
+
+      const [allRowsAnyStore, allRowsScopedStore] = await Promise.all([
+        Inventory.find(globalRowsFilter).select("storeId quantity status locationCode locationId").lean(),
+        Inventory.find(scopedRowsFilter).select("storeId quantity status locationCode locationId").lean(),
+      ]);
+
+      const hasAnyInventoryRows = allRowsAnyStore.length > 0;
+      const hasAnyStoreRows = allRowsScopedStore.length > 0;
+      const hasOtherStoreRows =
+        !hasAnyStoreRows &&
+        allRowsAnyStore.some((row) => normalizeObjectId(row?.storeId) !== normalizeObjectId(activeStoreId));
+      const hasPositiveQuantityRows = allRowsScopedStore.some((row) => (Number(row?.quantity) || 0) > 0);
+      const hasGoodAndPositiveRows = allRowsScopedStore.some(
+        (row) => row?.status === "GOOD" && (Number(row?.quantity) || 0) > 0
+      );
+      const hasGoodAndPositiveWithLocationRows = allRowsScopedStore.some(
+        (row) =>
+          row?.status === "GOOD" &&
+          (Number(row?.quantity) || 0) > 0 &&
+          String(row?.locationCode || "").trim()
+      );
+
+      const inventoryItems = scopedRows.filter(
+        (row) => row?.status === "GOOD" && (Number(row?.quantity) || 0) > 0
+      );
+      console.log("[pick-debug]", {
+        stage: "pick-list",
+        subStage: "after-inventory-query",
+        orderId: String(order._id),
+        itemId,
+        originalSku: sku,
+        normalizedSku: matchedSku,
+        scopedRows: scopedRows.length,
+        inventoryCandidates: inventoryItems.length,
+      });
+
+      let remainingQty = requiredQty;
       const locations = [];
+      let missingLocationCount = 0;
 
       for (const inv of inventoryItems) {
         if (remainingQty <= 0) break;
@@ -150,7 +413,20 @@ export const getPickList = async (req, res) => {
         if (availableQty <= 0) continue;
 
         const resolvedLocationCode = inv.locationCode || inv.locationId?.locationCode || "";
-        if (!resolvedLocationCode) continue;
+        if (!resolvedLocationCode) {
+          missingLocationCount += 1;
+          console.log("[pick-debug]", {
+            stage: "pick-list",
+            subStage: "skip-location",
+            orderId: String(order._id),
+            itemId,
+            originalSku: sku,
+            normalizedSku: matchedSku,
+            inventoryId: String(inv?._id || ""),
+            reason: "MISSING_LOCATION_CODE",
+          });
+          continue;
+        }
 
         const pickQty = Math.min(availableQty, remainingQty);
         locations.push({
@@ -166,17 +442,44 @@ export const getPickList = async (req, res) => {
         remainingQty -= pickQty;
       }
 
+      const reason =
+        remainingQty <= 0
+          ? undefined
+          : resolveUnpickableReason({
+              hasAnyInventoryRows,
+              hasAnyStoreRows,
+              hasPositiveQuantityRows,
+              hasGoodAndPositiveRows,
+              hasGoodAndPositiveWithLocationRows:
+                hasGoodAndPositiveWithLocationRows && missingLocationCount === 0,
+              hasOtherStoreRows,
+            });
+
       pickList.push({
-        sku,
-        productName: item.name || item.productName,
-        requiredQty: item.quantity,
+        sku: matchedSku,
+        productName,
+        requiredQty,
         serializedTrackingEnabled: Boolean(itemFlag.isSerialized),
         assignedDevicesCount: Array.isArray(item.deviceAssignments)
           ? item.deviceAssignments.length
           : 0,
         locations,
         fulfilled: remainingQty <= 0,
+        ...(remainingQty > 0 ? { reason } : {}),
       });
+
+      if (remainingQty > 0) {
+        console.log("[pick-debug]", {
+          stage: "pick-list",
+          subStage: "item-unpickable",
+          orderId: String(order._id),
+          itemId,
+          originalSku: sku,
+          normalizedSku: matchedSku,
+          inventoryFound: locations.length > 0,
+          reason,
+        });
+      }
     }
 
     res.json({
@@ -233,15 +536,27 @@ export const pickItem = async (req, res) => {
       });
     }
 
-    const orderItem = order.items.find(
-      (item) => normalizeSku(item?.sku || item?.variantSku) === normalizedSku
-    );
+    const resolveOrderItemSku = createOrderItemSkuResolver({
+      session,
+      activeStoreId,
+    });
+    let orderItem = null;
+    for (const item of Array.isArray(order.items) ? order.items : []) {
+      const itemSku = normalizeSku(await resolveOrderItemSku(item));
+      if (!orderItem && itemSku === normalizedSku) {
+        orderItem = item;
+      }
+    }
     if (!orderItem) {
       await session.abortTransaction();
       return res.status(404).json({
         success: false,
         message: `KhÃ´ng tÃ¬m tháº¥y SKU ${normalizedSku} trong Ä‘Æ¡n hÃ ng`,
       });
+    }
+
+    if (!normalizeSku(orderItem?.variantSku) && !normalizeSku(orderItem?.sku)) {
+      orderItem.variantSku = normalizedSku;
     }
 
     const isInStoreOrder =
@@ -290,6 +605,15 @@ export const pickItem = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: `Không đủ hàng tại ${normalizedLocationCode}. Tồn: ${availableQty}`,
+      });
+    }
+
+    if (String(inventory.productId || "") !== String(orderItem.productId || "")) {
+      await session.abortTransaction();
+      return res.status(409).json({
+        success: false,
+        code: "PRODUCT_MISMATCH",
+        message: "PRODUCT_MISMATCH",
       });
     }
 
@@ -354,7 +678,9 @@ export const pickItem = async (req, res) => {
       quantity: pickQty,
       locationCode: normalizedLocationCode,
     });
-    const pickCompleted = isOrderPickCompleted(order.items, pickedItems);
+    const pickCompleted = await isOrderPickCompleted(order.items, pickedItems, {
+      resolveOrderItemSku,
+    });
     const now = new Date();
 
     order.shippedByInfo = {

@@ -52,11 +52,9 @@ const TRANSFER_REASON_LABELS = Object.fromEntries(
 
 const STATUS_OPTIONS = [
   "ALL",
-  "PENDING",
-  "APPROVED",
-  "REJECTED",
+  "CREATED",
+  "WAITING_FOR_PICKUP",
   "IN_TRANSIT",
-  "RECEIVED",
   "COMPLETED",
   "CANCELLED",
 ];
@@ -97,7 +95,7 @@ const getTransferItemSummary = (items = []) => {
   return `${items.length} SKU / ${qty} sp`;
 };
 
-const summarizeTransfers = (transfers = []) =>
+const LEGACY_SUMMARIZE_TRANSFERS = (transfers = []) =>
   transfers.reduce(
     (acc, transfer) => {
       const status = transfer.status || "UNKNOWN";
@@ -119,19 +117,76 @@ const summarizeTransfers = (transfers = []) =>
     }
   );
 
+const TRANSFER_STATUS_META = {
+  labels: {
+    ...TRANSFER_STATUS_LABEL,
+    CREATED: "Đã tạo - Chờ xác nhận",
+    WAITING_FOR_PICKUP: "Đang chuẩn bị hàng",
+    IN_TRANSIT: "Đang vận chuyển",
+    COMPLETED: "Hoàn thành",
+    CANCELLED: "Đã hủy",
+    PENDING: "Chờ xử lý (cũ)",
+    APPROVED: "Đã duyệt (cũ)",
+    REJECTED: "Từ chối (cũ)",
+    RECEIVED: "Đã nhận (cũ)",
+  },
+  badges: {
+    ...STATUS_BADGE_CLASS,
+    CREATED: "bg-blue-100 text-blue-800",
+    WAITING_FOR_PICKUP: "bg-amber-100 text-amber-800",
+    IN_TRANSIT: "bg-indigo-100 text-indigo-800",
+    COMPLETED: "bg-green-100 text-green-800",
+    CANCELLED: "bg-zinc-200 text-zinc-800",
+  },
+};
+
+const summarizeTransferRows = (transfers = []) =>
+  transfers.reduce(
+    (acc, transfer) => {
+      const status = transfer.status || "UNKNOWN";
+      acc.total += 1;
+      if (status === "CREATED" || status === "WAITING_FOR_PICKUP") acc.created += 1;
+      if (status === "IN_TRANSIT") acc.inTransit += 1;
+      if (status === "COMPLETED") acc.completed += 1;
+      if (status === "CANCELLED") acc.cancelled += 1;
+      if (["PENDING", "APPROVED", "REJECTED", "RECEIVED"].includes(status)) acc.legacy += 1;
+      return acc;
+    },
+    {
+      total: 0,
+      created: 0,
+      inTransit: 0,
+      completed: 0,
+      cancelled: 0,
+      legacy: 0,
+    }
+  );
+
 const TransferStockPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const activeBranchId = useAuthStore((s) => s.activeBranchId);
+  const authz = useAuthStore((s) => s.authz);
+  const userRole = useAuthStore((s) => s.user?.role);
 
-  const canApproveTransfers = usePermission("transfer.approve");
-  const canCreateTransfer = usePermission("transfer.create");
-  const canOperateTransfers = usePermission(
-    ["transfer.create", "transfer.ship", "transfer.receive"],
-    {
-      mode: "any",
-    }
+  const isGlobalAdmin = Boolean(
+    authz?.isGlobalAdmin || String(userRole || "").toUpperCase() === "GLOBAL_ADMIN"
   );
+  const allowedBranches = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          (Array.isArray(authz?.allowedBranchIds) ? authz.allowedBranchIds : [])
+            .map((branchId) => String(branchId))
+            .filter(Boolean)
+        )
+      ),
+    [authz?.allowedBranchIds]
+  );
+  const canConfirmShipment = usePermission("transfer.ship");
+  const canConfirmReceived = usePermission("transfer.receive");
+  const canApproveTransfers = false;
+  const canOperateTransfers = false;
 
   const tabFromUrl = searchParams.get("tab");
   const [activeTab, setActiveTab] = useState(
@@ -166,13 +221,18 @@ const TransferStockPage = () => {
 
   // ── Modal states for approve / receive / ship / reject / cancel ──
   const [approveModal, setApproveModal] = useState({ open: false, transfer: null, items: [] });
-  const [receiveModal, setReceiveModal] = useState({ open: false, transfer: null, items: [] });
+  const [receiveModal, setReceiveModal] = useState({
+    open: false,
+    transfer: null,
+    items: [],
+    notes: "",
+  });
   const [shipModal, setShipModal] = useState({ open: false, transfer: null, trackingNumber: "", carrier: "" });
   const [rejectModal, setRejectModal] = useState({ open: false, transfer: null, reason: "" });
   const [cancelModal, setCancelModal] = useState({ open: false, transfer: null, reason: "" });
   const [modalLoading, setModalLoading] = useState(false);
 
-  const branchSummary = useMemo(() => summarizeTransfers(transfers), [transfers]);
+  const branchSummary = useMemo(() => summarizeTransferRows(transfers), [transfers]);
 
   const resetInternalForm = () => {
     setStep(1);
@@ -329,7 +389,7 @@ const TransferStockPage = () => {
   };
 
   const submitTransferRequest = async () => {
-    if (!canCreateTransfer) {
+    if (!isGlobalAdmin) {
       toast.error("Bạn không có quyền tạo yêu cầu chuyển kho");
       return;
     }
@@ -445,15 +505,8 @@ const TransferStockPage = () => {
       setReceiveModal({
         open: true,
         transfer,
-        items: transfer.items
-          .filter((item) => (item.approvedQuantity || 0) > 0)
-          .map((item) => ({
-            variantSku: item.variantSku,
-            name: item.name || item.variantSku,
-            approvedQuantity: item.approvedQuantity,
-            receivedQuantity: String(item.approvedQuantity), // default = full approved
-            reason: "",
-          })),
+        items: transfer.items || [],
+        notes: "",
       });
     } else if (action === "ship") {
       setShipModal({ open: true, transfer, trackingNumber: "", carrier: "" });
@@ -502,14 +555,11 @@ const TransferStockPage = () => {
   const submitReceive = async () => {
     try {
       setModalLoading(true);
-      const receivedItems = receiveModal.items.map((item) => ({
-        variantSku: item.variantSku,
-        quantity: Number(item.receivedQuantity) || 0,
-        reason: item.reason,
-      }));
-      await stockTransferAPI.receive(receiveModal.transfer._id, { receivedItems });
+      await stockTransferAPI.confirmReceived(receiveModal.transfer._id, {
+        notes: receiveModal.notes,
+      });
       toast.success("Đã xác nhận nhận hàng");
-      setReceiveModal({ open: false, transfer: null, items: [] });
+      setReceiveModal({ open: false, transfer: null, items: [], notes: "" });
       await fetchBranchData();
     } catch (error) {
       toast.error(error.response?.data?.message || "Không thể nhận hàng");
@@ -521,7 +571,7 @@ const TransferStockPage = () => {
   const submitShip = async () => {
     try {
       setModalLoading(true);
-      await stockTransferAPI.ship(shipModal.transfer._id, {
+      await stockTransferAPI.confirmShipment(shipModal.transfer._id, {
         trackingNumber: shipModal.trackingNumber,
         carrier: shipModal.carrier,
       });
@@ -806,11 +856,17 @@ const TransferStockPage = () => {
                 xác thực khi tạo phiếu.
               </p>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {!canCreateTransfer && (
+            {!isGlobalAdmin && (
+              <div className="mx-6 mb-6 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                Chỉ Global Admin mới có thể tạo yêu cầu chuyển kho. Bạn vẫn có thể xem danh
+                sách và xác nhận phiếu được giao.
+              </div>
+            )}
+            <CardContent className={isGlobalAdmin ? "space-y-4" : "hidden"}>
+              {!isGlobalAdmin && (
                 <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
                   Tài khoản của bạn không có quyền <strong>transfer.create</strong>. Bạn vẫn có thể
-                  xem danh sách phiếu; vui lòng liên quản trị để được cấp quyền tạo yêu cầu.
+                  xem danh sách phiếu; vui lòng liên hệ quản trị để được cấp quyền tạo yêu cầu.
                 </div>
               )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -946,7 +1002,7 @@ const TransferStockPage = () => {
               <div className="flex justify-end">
                 <Button
                   onClick={submitTransferRequest}
-                  disabled={branchLoading || !canCreateTransfer}
+                  disabled={branchLoading || !isGlobalAdmin}
                 >
                   {branchLoading ? "Đang gửi..." : "Tạo yêu cầu"}
                 </Button>
@@ -963,14 +1019,8 @@ const TransferStockPage = () => {
             </Card>
             <Card>
               <CardContent className="p-4">
-                <p className="text-xs text-gray-500">Chờ Duyệt</p>
-                <p className="text-xl font-bold text-amber-600">{branchSummary.pending}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs text-gray-500">Đã Duyệt</p>
-                <p className="text-xl font-bold text-blue-600">{branchSummary.approved}</p>
+                <p className="text-xs text-gray-500">Đã tạo</p>
+                <p className="text-xl font-bold text-blue-600">{branchSummary.created}</p>
               </CardContent>
             </Card>
             <Card>
@@ -981,8 +1031,14 @@ const TransferStockPage = () => {
             </Card>
             <Card>
               <CardContent className="p-4">
-                <p className="text-xs text-gray-500">Đã Nhận</p>
-                <p className="text-xl font-bold text-emerald-600">{branchSummary.received}</p>
+                <p className="text-xs text-gray-500">Legacy</p>
+                <p className="text-xl font-bold text-amber-700">{branchSummary.legacy}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs text-gray-500">Đã Hủy</p>
+                <p className="text-xl font-bold text-zinc-700">{branchSummary.cancelled}</p>
               </CardContent>
             </Card>
             <Card>
@@ -1064,6 +1120,44 @@ const TransferStockPage = () => {
                           <div>{transfer.fromStore?.storeCode || "-"}</div>
                           <div className="text-gray-500">
                             {"-> " + (transfer.toStore?.storeCode || "-")}
+                            {(isGlobalAdmin ||
+                              allowedBranches.includes(String(transfer.fromStore?.storeId || ""))) &&
+                              canConfirmShipment &&
+                              transfer.status === "CREATED" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleTransferAction(transfer, "ship")}
+                                >
+                                  <Truck className="w-4 h-4 mr-1" />
+                                  Xác nhận gửi hàng
+                                </Button>
+                              )}
+
+                            {(isGlobalAdmin ||
+                              allowedBranches.includes(String(transfer.toStore?.storeId || ""))) &&
+                              canConfirmReceived &&
+                              transfer.status === "IN_TRANSIT" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleTransferAction(transfer, "receive")}
+                                >
+                                  <PackageCheck className="w-4 h-4 mr-1" />
+                                  Xác nhận nhận hàng
+                                </Button>
+                              )}
+
+                            {isGlobalAdmin && transfer.status === "CREATED" && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleTransferAction(transfer, "cancel")}
+                              >
+                                <XCircle className="w-4 h-4 mr-1" />
+                                Hủy
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell>
@@ -1075,11 +1169,11 @@ const TransferStockPage = () => {
                         <TableCell>
                           <Badge
                             className={
-                              STATUS_BADGE_CLASS[transfer.status] ||
+                              TRANSFER_STATUS_META.badges[transfer.status] ||
                               "bg-zinc-100 text-zinc-800"
                             }
                           >
-                            {TRANSFER_STATUS_LABEL[transfer.status] || transfer.status}
+                            {TRANSFER_STATUS_META.labels[transfer.status] || transfer.status}
                           </Badge>
                         </TableCell>
                         <TableCell>{formatDateTime(transfer.createdAt)}</TableCell>
@@ -1214,7 +1308,7 @@ const TransferStockPage = () => {
       </Dialog>
 
       {/* ── Receive Modal ── */}
-      <Dialog open={receiveModal.open} onOpenChange={(open) => !open && setReceiveModal({ open: false, transfer: null, items: [] })}>
+      <Dialog open={approveModal.open && receiveModal.open} onOpenChange={(open) => !open && setReceiveModal({ open: false, transfer: null, items: [], notes: "" })}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Xác nhận nhận hàng</DialogTitle>
@@ -1280,6 +1374,63 @@ const TransferStockPage = () => {
       </Dialog>
 
       {/* ── Ship Modal ── */}
+      <Dialog
+        open={receiveModal.open}
+        onOpenChange={(open) =>
+          !open && setReceiveModal({ open: false, transfer: null, items: [], notes: "" })
+        }
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Xác nhận nhận hàng</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Xác nhận bước này sẽ trừ tồn kho tại kho nguồn và cộng tồn kho tại kho đích.
+            </p>
+            <div className="rounded-md border p-3">
+              <div className="text-sm font-medium">
+                {(receiveModal.transfer?.fromStore?.storeCode || "-") +
+                  " -> " +
+                  (receiveModal.transfer?.toStore?.storeCode || "-")}
+              </div>
+              <div className="mt-2 space-y-1 text-sm text-gray-600">
+                {(receiveModal.transfer?.items || []).map((item) => (
+                  <div key={item.variantSku}>
+                    {item.variantSku}: {Number(item.requestedQuantity) || 0}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <Label>Ghi chú (tùy chọn)</Label>
+              <textarea
+                className="w-full mt-1 p-2 border rounded-md"
+                rows={3}
+                value={receiveModal.notes}
+                onChange={(event) =>
+                  setReceiveModal((prev) => ({ ...prev, notes: event.target.value }))
+                }
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() =>
+                setReceiveModal({ open: false, transfer: null, items: [], notes: "" })
+              }
+              disabled={modalLoading}
+            >
+              Hủy
+            </Button>
+            <Button onClick={submitReceive} disabled={modalLoading}>
+              {modalLoading ? "Đang xử lý..." : "Xác nhận nhận hàng"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={shipModal.open} onOpenChange={(open) => !open && setShipModal({ open: false, transfer: null, trackingNumber: "", carrier: "" })}>
         <DialogContent className="max-w-md">
           <DialogHeader>

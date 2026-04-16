@@ -150,7 +150,7 @@ const SearchResultsPage = () => {
       <div className="container mx-auto px-4 max-w-7xl">
         <div className="mb-8">
           <h1 className="text-2xl md:text-3xl font-bold">
-            Ket qua tim kiem:{" "}
+            Kết quả tìm kiếm:{" "}
             <span className="text-blue-600">"{searchQuery}"</span>
           </h1>
 
@@ -185,7 +185,7 @@ const SearchResultsPage = () => {
           )}
 
           <p className="text-gray-600 mt-2">
-            Tim thay <strong>{filteredProducts.length}</strong> san pham
+            Tìm thấy <strong>{filteredProducts.length}</strong> sản phẩm
           </p>
         </div>
 

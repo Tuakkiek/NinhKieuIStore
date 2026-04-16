@@ -38,8 +38,18 @@ const stockTransferSchema = new mongoose.Schema(
         name: String,
         image: String,
         requestedQuantity: Number,
-        approvedQuantity: Number,
-        receivedQuantity: Number,
+        approvedQuantity: {
+          type: Number,
+          default: 0,
+        },
+        receivedQuantity: {
+          type: Number,
+          default: 0,
+        },
+        confirmedQuantity: {
+          type: Number,
+          default: 0,
+        },
         condition: {
           type: String,
           enum: ["NEW", "GOOD", "DAMAGED"],
@@ -59,15 +69,18 @@ const stockTransferSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: [
+        "CREATED",
+        "WAITING_FOR_PICKUP",
+        "IN_TRANSIT",
+        "COMPLETED",
+        "CANCELLED",
+        // Legacy statuses kept so old records still validate if re-saved.
         "PENDING",
         "APPROVED",
         "REJECTED",
-        "IN_TRANSIT",
         "RECEIVED",
-        "COMPLETED",
-        "CANCELLED",
       ],
-      default: "PENDING",
+      default: "CREATED",
     },
 
     requestedBy: {

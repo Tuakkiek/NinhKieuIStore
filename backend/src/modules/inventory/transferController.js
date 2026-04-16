@@ -3,10 +3,11 @@ import StockTransfer from "./StockTransfer.js";
 import Store from "../store/Store.js";
 import StoreInventory from "./StoreInventory.js";
 import StockMovement from "../warehouse/StockMovement.js";
-import Inventory from "../warehouse/Inventory.js"; // Added for physical inventory sync
-import WarehouseLocation from "../warehouse/WarehouseLocation.js"; // Added for physical inventory sync
+import Inventory from "../warehouse/Inventory.js";
+import WarehouseLocation from "../warehouse/WarehouseLocation.js";
 
-const TRANSFER_EDITABLE_STATUSES = new Set(["PENDING", "APPROVED"]);
+const TRANSFER_EDITABLE_STATUSES = new Set(["CREATED"]);
+const PHYSICAL_WAREHOUSE_STORE_ID = "67ab23743c72b2ff5432c256";
 
 const getActorName = (user) =>
   user?.fullName?.trim() || user?.name?.trim() || user?.email?.trim() || "Unknown";
@@ -17,34 +18,184 @@ const toPositiveInteger = (value) => {
   return Math.floor(parsed);
 };
 
-const toNonNegativeInteger = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) return null;
-  return Math.floor(parsed);
+const normalizeSku = (value) => String(value || "").trim();
+
+const getAllowedBranchIds = (req) =>
+  Array.isArray(req?.authz?.allowedBranchIds)
+    ? req.authz.allowedBranchIds.map((branchId) => String(branchId)).filter(Boolean)
+    : [];
+
+const isGlobalAdminRequest = (req) => Boolean(req?.authz?.isGlobalAdmin);
+
+const hasTransferAccess = (req, transfer) => {
+  if (isGlobalAdminRequest(req)) return true;
+
+  const allowedBranches = getAllowedBranchIds(req);
+  const fromStoreId = String(transfer?.fromStore?.storeId || "");
+  const toStoreId = String(transfer?.toStore?.storeId || "");
+
+  return allowedBranches.includes(fromStoreId) || allowedBranches.includes(toStoreId);
 };
 
-const normalizeSku = (value) => String(value || "").trim();
+const ensureTransferAccess = (req, transfer) => {
+  if (!hasTransferAccess(req, transfer)) {
+    throw new Error("AUTHZ_BRANCH_FORBIDDEN: Ban khong duoc xem transfer nay");
+  }
+};
+
+const buildTransferAccessFilter = (req) => {
+  if (isGlobalAdminRequest(req)) return {};
+
+  const allowedBranches = getAllowedBranchIds(req);
+  if (allowedBranches.length === 0) {
+    return { _id: { $exists: false } };
+  }
+
+  return {
+    $or: [
+      { "fromStore.storeId": { $in: allowedBranches } },
+      { "toStore.storeId": { $in: allowedBranches } },
+    ],
+  };
+};
 
 const ensureStore = async (storeId, session) => {
   const store = await Store.findById(storeId)
     .select("_id code name status type")
     .session(session);
+
   if (!store) {
     throw new Error(`Khong tim thay cua hang: ${storeId}`);
   }
   if (store.status !== "ACTIVE") {
     throw new Error(`Cua hang ${store.code} khong o trang thai ACTIVE`);
   }
+
   return store;
 };
 
-const getTransferForRead = async (transferId) => {
-  return StockTransfer.findById(transferId)
+const getTransferForRead = async (transferId) =>
+  StockTransfer.findById(transferId)
     .populate("requestedBy", "fullName email role")
     .populate("approvedBy", "fullName email role")
     .populate("rejectedBy", "fullName email role")
     .populate("shippedBy", "fullName email role")
     .populate("receivedBy", "fullName email role");
+
+const buildInventoryFilter = ({ storeId, item }) => {
+  const filter = {
+    storeId,
+    variantSku: item.variantSku,
+  };
+
+  if (item.productId) {
+    filter.productId = item.productId;
+  }
+
+  return filter;
+};
+
+const isWarehouseStore = (store = {}) => {
+  const storeCode = String(store?.storeCode || "");
+  const storeId = String(store?.storeId || "");
+  return storeCode.startsWith("WH") || storeId === PHYSICAL_WAREHOUSE_STORE_ID;
+};
+
+const syncPhysicalSourceInventoryOnReceipt = async ({
+  transfer,
+  item,
+  quantity,
+  session,
+}) => {
+  if (!isWarehouseStore(transfer.fromStore) || quantity <= 0) return;
+
+  let remainingQtyToPick = quantity;
+  const query = {
+    storeId: transfer.fromStore.storeId,
+    sku: item.variantSku,
+    locationCode: { $regex: new RegExp(`^${transfer.fromStore.storeCode}-`) },
+    quantity: { $gt: 0 },
+  };
+
+  const physicalInventories = await Inventory.find(query)
+    .sort({ quantity: -1 })
+    .session(session);
+
+  for (const inventory of physicalInventories) {
+    if (remainingQtyToPick <= 0) break;
+
+    const pickQty = Math.min(Number(inventory.quantity) || 0, remainingQtyToPick);
+    inventory.quantity -= pickQty;
+    remainingQtyToPick -= pickQty;
+
+    if (inventory.quantity === 0) {
+      await Inventory.deleteOne({ _id: inventory._id }).session(session);
+    } else {
+      await inventory.save({ session });
+    }
+
+    const location = await WarehouseLocation.findById(inventory.locationId).session(session);
+    if (location) {
+      location.currentLoad = Math.max(0, (location.currentLoad || 0) - pickQty);
+      await location.save({ session });
+    }
+  }
+
+  if (remainingQtyToPick > 0) {
+    console.warn( // eslint-disable-line no-console
+      `[StockTransfer] Metadata mismatch for ${transfer.transferNumber} ${item.variantSku}: missing ${remainingQtyToPick} units in physical source inventory.`
+    );
+  }
+};
+
+const syncPhysicalDestinationInventoryOnReceipt = async ({
+  transfer,
+  item,
+  quantity,
+  session,
+}) => {
+  if (!isWarehouseStore(transfer.toStore) || quantity <= 0) return;
+
+  const targetLocation = await WarehouseLocation.findOne({
+    storeId: transfer.toStore.storeId,
+    locationCode: { $regex: `^${transfer.toStore.storeCode}-` },
+    status: "ACTIVE",
+  }).session(session);
+
+  if (!targetLocation) {
+    const warnMsg = `[CANH BAO] Khong tim thay vi tri kho vat ly cho SKU ${item.variantSku} tai ${transfer.toStore.storeCode}.`;
+    console.warn(`[StockTransfer] ${warnMsg}`); // eslint-disable-line no-console
+    transfer.receivingNotes = [transfer.receivingNotes, warnMsg].filter(Boolean).join(" | ");
+    return;
+  }
+
+  let physicalInventory = await Inventory.findOne({
+    storeId: transfer.toStore.storeId,
+    sku: item.variantSku,
+    locationId: targetLocation._id,
+  }).session(session);
+
+  if (physicalInventory) {
+    physicalInventory.quantity += quantity;
+    physicalInventory.lastReceived = new Date();
+    await physicalInventory.save({ session });
+  } else {
+    physicalInventory = new Inventory({
+      storeId: transfer.toStore.storeId,
+      sku: item.variantSku,
+      productId: item.productId,
+      productName: item.name || item.variantSku,
+      locationId: targetLocation._id,
+      locationCode: targetLocation.locationCode,
+      quantity,
+      status: "GOOD",
+      lastReceived: new Date(),
+    });
+    await physicalInventory.save({ session });
+  }
+
+  targetLocation.currentLoad = (targetLocation.currentLoad || 0) + quantity;
+  await targetLocation.save({ session });
 };
 
 const validateTransferItemsForRequest = async ({
@@ -53,13 +204,12 @@ const validateTransferItemsForRequest = async ({
   session,
 }) => {
   const normalizedItems = [];
-
-  // Bug #1 fix: Check for duplicate SKUs before processing
   const skuSet = new Set();
+
   for (const rawItem of rawItems) {
     const sku = normalizeSku(rawItem.variantSku || rawItem.sku);
     if (sku && skuSet.has(sku)) {
-      throw new Error(`SKU trùng lặp trong danh sách yêu cầu: ${sku}. Vui lòng gộp số lượng vào một dòng.`);
+      throw new Error(`SKU trung lap trong danh sach yeu cau: ${sku}`);
     }
     if (sku) skuSet.add(sku);
   }
@@ -111,6 +261,7 @@ const validateTransferItemsForRequest = async ({
       requestedQuantity,
       approvedQuantity: 0,
       receivedQuantity: 0,
+      confirmedQuantity: 0,
       condition: rawItem.condition || "NEW",
     });
   }
@@ -127,6 +278,10 @@ export const requestTransfer = async (req, res) => {
   session.startTransaction();
 
   try {
+    if (!isGlobalAdminRequest(req)) {
+      throw new Error("AUTHZ_FORBIDDEN: Only Global Admin can create transfer requests");
+    }
+
     const { fromStoreId, toStoreId, items, reason, notes } = req.body;
 
     if (!fromStoreId || !toStoreId) {
@@ -142,15 +297,6 @@ export const requestTransfer = async (req, res) => {
       throw new Error("Ly do transfer la bat buoc");
     }
 
-    // ── KILL-SWITCH: Branch ownership validation ──
-    const allowedBranches = req.authz?.allowedBranchIds || [];
-    const isGlobalAdmin = req.authz?.isGlobalAdmin || false;
-    if (!isGlobalAdmin && !allowedBranches.includes(String(fromStoreId))) {
-      throw new Error("AUTHZ_BRANCH_FORBIDDEN: You do not manage the source store");
-    }
-
-    // Do not run transaction-scoped queries in parallel on the same session.
-    // MongoDB transactions can fail with "active transaction number" mismatches.
     const fromStore = await ensureStore(fromStoreId, session);
     const toStore = await ensureStore(toStoreId, session);
 
@@ -176,7 +322,7 @@ export const requestTransfer = async (req, res) => {
           items: normalizedItems,
           reason,
           notes: String(notes || "").trim(),
-          status: "PENDING",
+          status: "CREATED",
           requestedBy: req.user._id,
           requestedAt: new Date(),
         },
@@ -212,14 +358,22 @@ export const getTransfers = async (req, res) => {
       limit = 20,
     } = req.query;
 
-    const filter = {};
+    const filter = {
+      ...buildTransferAccessFilter(req),
+    };
+
     if (status) filter.status = String(status).trim().toUpperCase();
     if (fromStoreId) filter["fromStore.storeId"] = fromStoreId;
     if (toStoreId) filter["toStore.storeId"] = toStoreId;
     if (search) {
-      filter.$or = [
-        { transferNumber: { $regex: search, $options: "i" } },
-        { "items.variantSku": { $regex: search, $options: "i" } },
+      filter.$and = [
+        ...(filter.$and || []),
+        {
+          $or: [
+            { transferNumber: { $regex: search, $options: "i" } },
+            { "items.variantSku": { $regex: search, $options: "i" } },
+          ],
+        },
       ];
     }
 
@@ -267,19 +421,37 @@ export const getTransferById = async (req, res) => {
       });
     }
 
+    ensureTransferAccess(req, transfer);
+
     return res.json({
       success: true,
       transfer,
     });
   } catch (error) {
-    return res.status(500).json({
+    const isForbidden = String(error.message || "").startsWith("AUTHZ_BRANCH_FORBIDDEN");
+    return res.status(isForbidden ? 403 : 500).json({
       success: false,
       message: error.message || "Khong the lay chi tiet transfer",
     });
   }
 };
 
-export const approveTransfer = async (req, res) => {
+export const approveTransfer = async (req, res) =>
+  res.status(410).json({
+    success: false,
+    code: "ENDPOINT_DEPRECATED",
+    message:
+      "approveTransfer is no longer used. Global Admin creates transfers with auto-validation. Source branch uses confirmShipment.",
+  });
+
+export const rejectTransfer = async (req, res) =>
+  res.status(410).json({
+    success: false,
+    code: "ENDPOINT_DEPRECATED",
+    message: "rejectTransfer is no longer used.",
+  });
+
+export const confirmShipment = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
@@ -288,268 +460,26 @@ export const approveTransfer = async (req, res) => {
     if (!transfer) {
       throw new Error("Khong tim thay transfer");
     }
-    if (transfer.status !== "PENDING") {
-      throw new Error("Chi transfer PENDING moi duoc phe duyet");
-    }
-
-    // ── KILL-SWITCH: Branch ownership validation ──
-    const allowedBranches = req.authz?.allowedBranchIds || [];
-    const isGlobalAdmin = req.authz?.isGlobalAdmin || false;
-    if (!isGlobalAdmin && !allowedBranches.includes(String(transfer.fromStore.storeId))) {
-      throw new Error("AUTHZ_BRANCH_FORBIDDEN: You do not manage the source store");
-    }
-
-    const approvedItems = Array.isArray(req.body.approvedItems)
-      ? req.body.approvedItems
-      : [];
-    const approvedBySku = new Map();
-    for (const item of approvedItems) {
-      const sku = normalizeSku(item.variantSku || item.sku);
-      if (!sku) continue;
-      const qty = toNonNegativeInteger(item.quantity);
-      approvedBySku.set(sku, qty === null ? 0 : qty);
-    }
-
-    let approvedTotal = 0;
-
-    for (const item of transfer.items) {
-      const requestedQty = Number(item.requestedQuantity) || 0;
-      const chosenQty = approvedBySku.has(item.variantSku)
-        ? approvedBySku.get(item.variantSku)
-        : requestedQty;
-      const approvedQty = Math.min(requestedQty, Math.max(0, chosenQty || 0));
-
-      item.approvedQuantity = approvedQty;
-
-      if (approvedQty <= 0) {
-        continue;
-      }
-
-      const sourceInventory = await StoreInventory.findOne({
-        storeId: transfer.fromStore.storeId,
-        productId: item.productId,
-        variantSku: item.variantSku,
-      })
-        .session(session)
-        .setOptions({ skipBranchIsolation: true });
-
-      if (!sourceInventory) {
-        throw new Error(`Khong tim thay ton kho nguon cho SKU ${item.variantSku}`);
-      }
-
-      const available = Number(sourceInventory.available) || 0;
-      if (available < approvedQty) {
-        throw new Error(
-          `Khong du ton kho de phe duyet SKU ${item.variantSku}. Available: ${available}`
-        );
-      }
-
-      sourceInventory.reserved = (Number(sourceInventory.reserved) || 0) + approvedQty;
-      await sourceInventory.save({ session });
-      approvedTotal += approvedQty;
-    }
-
-    if (approvedTotal <= 0) {
-      throw new Error("Khong co so luong nao duoc phe duyet");
-    }
-
-    transfer.status = "APPROVED";
-    transfer.approvedBy = req.user._id;
-    transfer.approvedAt = new Date();
-    await transfer.save({ session });
-
-    await session.commitTransaction();
-
-    const refreshed = await getTransferForRead(transfer._id);
-    return res.json({
-      success: true,
-      transfer: refreshed,
-    });
-  } catch (error) {
-    await session.abortTransaction();
-    return res.status(400).json({
-      success: false,
-      message: error.message || "Khong the phe duyet transfer",
-    });
-  } finally {
-    session.endSession();
-  }
-};
-
-export const rejectTransfer = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    const transfer = await StockTransfer.findById(req.params.id).session(session);
-    if (!transfer) {
-      throw new Error("Khong tim thay transfer");
-    }
-    if (transfer.status !== "PENDING") {
-      throw new Error("Chi transfer PENDING moi duoc tu choi");
-    }
-
-    transfer.status = "REJECTED";
-    transfer.rejectedBy = req.user._id;
-    transfer.rejectedAt = new Date();
-    transfer.rejectionReason = String(req.body.reason || req.body.rejectionReason || "")
-      .trim();
-    await transfer.save({ session });
-
-    await session.commitTransaction();
-
-    const refreshed = await getTransferForRead(transfer._id);
-    return res.json({
-      success: true,
-      transfer: refreshed,
-    });
-  } catch (error) {
-    await session.abortTransaction();
-    return res.status(400).json({
-      success: false,
-      message: error.message || "Khong the tu choi transfer",
-    });
-  } finally {
-    session.endSession();
-  }
-};
-
-export const shipTransfer = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    const transfer = await StockTransfer.findById(req.params.id).session(session);
-    if (!transfer) {
-      throw new Error("Khong tim thay transfer");
-    }
-    if (transfer.status !== "APPROVED") {
-      throw new Error("Chi transfer APPROVED moi duoc xuat hang");
-    }
-
-    // ── KILL-SWITCH: Branch ownership validation ──
-    const allowedBranches = req.authz?.allowedBranchIds || [];
-    const isGlobalAdmin = req.authz?.isGlobalAdmin || false;
-    if (!isGlobalAdmin && !allowedBranches.includes(String(transfer.fromStore.storeId))) {
-      throw new Error("AUTHZ_BRANCH_FORBIDDEN: You do not manage the source store");
-    }
-
-    const actorName = getActorName(req.user);
-    let shippedQuantity = 0;
-
-    for (const item of transfer.items) {
-      const approvedQty = Number(item.approvedQuantity) || 0;
-      if (approvedQty <= 0) continue;
-
-      const sourceInventory = await StoreInventory.findOne({
-        storeId: transfer.fromStore.storeId,
-        productId: item.productId,
-        variantSku: item.variantSku,
-      })
-        .session(session)
-        .setOptions({ skipBranchIsolation: true });
-
-      if (!sourceInventory) {
-        throw new Error(`Khong tim thay ton kho nguon cho SKU ${item.variantSku}`);
-      }
-
-      const quantity = Number(sourceInventory.quantity) || 0;
-      const reserved = Number(sourceInventory.reserved) || 0;
-      // Bug #10 fix: Split into two checks for clearer race-condition detection
-      if (quantity < approvedQty) {
-        throw new Error(
-          `Không đủ tồn kho thực tế để xuất SKU ${item.variantSku}. Cần ${approvedQty}, hiện có ${quantity}. Có thể đã xảy ra xung đột đồng thời.`
-        );
-      }
-      if (reserved < approvedQty) {
-        throw new Error(
-          `Số lượng dự trữ không đủ cho SKU ${item.variantSku}. Dự trữ: ${reserved}, Cần xuất: ${approvedQty}. Vui lòng kiểm tra lại trạng thái transfer.`
-        );
-      }
-
-      sourceInventory.quantity = quantity - approvedQty;
-      sourceInventory.reserved = reserved - approvedQty;
-      await sourceInventory.save({ session });
-
-      // =================================================================
-      // PHYSICAL INVENTORY SYNC (AUTO-PICK)
-      // =================================================================
-      // Only if source store is a WAREHOUSE
-      if (transfer.fromStore.storeCode.startsWith("WH") || transfer.fromStore.storeId.toString() === "67ab23743c72b2ff5432c256") {
-          let remainingQtyToPick = approvedQty;
-
-          const query = {
-              storeId: transfer.fromStore.storeId,
-              sku: item.variantSku,
-              locationCode: { $regex: new RegExp("^" + transfer.fromStore.storeCode + "-") },
-              quantity: { $gt: 0 }
-          };
-
-          const physicalInventories = await Inventory.find(query).sort({ quantity: -1 }).session(session);
-
-          for (const inv of physicalInventories) {
-              if (remainingQtyToPick <= 0) break;
-
-              const pickQty = Math.min(inv.quantity, remainingQtyToPick);
-              inv.quantity -= pickQty;
-              remainingQtyToPick -= pickQty;
-
-              if (inv.quantity === 0) {
-                  await Inventory.deleteOne({ _id: inv._id }).session(session);
-              } else {
-                  await inv.save({ session });
-              }
-
-              // Update Location Current Load
-              const location = await WarehouseLocation.findById(inv.locationId).session(session);
-              if (location) {
-                  location.currentLoad = Math.max(0, (location.currentLoad || 0) - pickQty);
-                  await location.save({ session });
-              }
-          }
-
-          if (remainingQtyToPick > 0) {
-              // WARNING: Logical Inventory had stock, but Physical Inventory did not!
-              // We log this but do NOT fail the transfer to avoid blocking operations.
-              console.warn(`[StockTransfer] Metadata mismatch! Transfer ${transfer.transferNumber} Item ${item.variantSku}: Missing ${remainingQtyToPick} in Physical Inventory.`); // eslint-disable-line no-console
-          }
-      }
-      // =================================================================
-
-      await StockMovement.create(
-        [
-          {
-            storeId: transfer.fromStore.storeId,
-            type: "TRANSFER",
-            sku: item.variantSku,
-            productId: item.productId,
-            productName: item.name || item.variantSku,
-            fromLocationCode: transfer.fromStore.storeCode,
-            toLocationCode: transfer.toStore.storeCode,
-            quantity: approvedQty,
-            referenceType: "TRANSFER",
-            referenceId: transfer.transferNumber,
-            performedBy: req.user._id,
-            performedByName: actorName,
-            notes: `Ship transfer ${transfer.transferNumber}`,
-          },
-        ],
-        { session }
+    if (transfer.status !== "CREATED") {
+      throw new Error(
+        `Chi transfer CREATED moi co the xac nhan gui hang. Hien tai: ${transfer.status}`
       );
-
-      shippedQuantity += approvedQty;
     }
 
-    if (shippedQuantity <= 0) {
-      throw new Error("Transfer khong co item da duoc phe duyet de xuat");
+    const allowedBranches = getAllowedBranchIds(req);
+    if (
+      !isGlobalAdminRequest(req) &&
+      !allowedBranches.includes(String(transfer.fromStore.storeId))
+    ) {
+      throw new Error("AUTHZ_BRANCH_FORBIDDEN: Ban khong quan ly kho nguon");
     }
 
     transfer.status = "IN_TRANSIT";
+    transfer.shippedBy = req.user._id;
+    transfer.shippedAt = new Date();
     transfer.trackingNumber = String(req.body.trackingNumber || "").trim();
     transfer.carrier = String(req.body.carrier || "").trim();
     transfer.estimatedDelivery = req.body.estimatedDelivery || transfer.estimatedDelivery;
-    transfer.shippedBy = req.user._id;
-    transfer.shippedAt = new Date();
     await transfer.save({ session });
 
     await session.commitTransaction();
@@ -563,14 +493,14 @@ export const shipTransfer = async (req, res) => {
     await session.abortTransaction();
     return res.status(400).json({
       success: false,
-      message: error.message || "Khong the xuat transfer",
+      message: error.message || "Khong the xac nhan gui hang",
     });
   } finally {
     session.endSession();
   }
 };
 
-export const receiveTransfer = async (req, res) => {
+export const confirmReceived = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
@@ -580,70 +510,63 @@ export const receiveTransfer = async (req, res) => {
       throw new Error("Khong tim thay transfer");
     }
     if (transfer.status !== "IN_TRANSIT") {
-      throw new Error("Chi transfer IN_TRANSIT moi duoc nhan");
+      throw new Error(
+        `Chi transfer IN_TRANSIT moi co the xac nhan nhan. Hien tai: ${transfer.status}`
+      );
     }
 
-    // ── KILL-SWITCH: Branch ownership validation (destination) ──
-    const allowedBranches = req.authz?.allowedBranchIds || [];
-    const isGlobalAdmin = req.authz?.isGlobalAdmin || false;
-    if (!isGlobalAdmin && !allowedBranches.includes(String(transfer.toStore.storeId))) {
-      throw new Error("AUTHZ_BRANCH_FORBIDDEN: You do not manage the destination store");
+    const allowedBranches = getAllowedBranchIds(req);
+    if (
+      !isGlobalAdminRequest(req) &&
+      !allowedBranches.includes(String(transfer.toStore.storeId))
+    ) {
+      throw new Error("AUTHZ_BRANCH_FORBIDDEN: Ban khong quan ly kho dich");
     }
 
     const actorName = getActorName(req.user);
-    const receivedItems = Array.isArray(req.body.receivedItems)
-      ? req.body.receivedItems
-      : [];
-    const receivedBySku = new Map();
-    const reasonBySku = new Map();
-
-    for (const item of receivedItems) {
-      const sku = normalizeSku(item.variantSku || item.sku);
-      if (!sku) continue;
-      const qty = toNonNegativeInteger(item.quantity);
-      receivedBySku.set(sku, qty === null ? 0 : qty);
-      reasonBySku.set(sku, String(item.reason || "").trim());
-    }
-
-    const discrepancies = [];
-    let receivedTotal = 0;
+    let totalMoved = 0;
 
     for (const item of transfer.items) {
-      const approvedQty = Number(item.approvedQuantity) || 0;
-      if (approvedQty <= 0) {
-        item.receivedQuantity = 0;
-        continue;
+      const requestedQty = Number(item.requestedQuantity) || 0;
+      if (requestedQty <= 0) continue;
+
+      const sourceInventory = await StoreInventory.findOne(
+        buildInventoryFilter({ storeId: transfer.fromStore.storeId, item })
+      )
+        .session(session)
+        .setOptions({ skipBranchIsolation: true });
+
+      if (!sourceInventory) {
+        throw new Error(`Khong tim thay ton kho nguon cho SKU ${item.variantSku}`);
       }
 
-      const chosenQty = receivedBySku.has(item.variantSku)
-        ? receivedBySku.get(item.variantSku)
-        : approvedQty;
-      const receivedQty = Math.min(approvedQty, Math.max(0, chosenQty || 0));
-      item.receivedQuantity = receivedQty;
-
-      if (receivedQty !== approvedQty) {
-        discrepancies.push({
-          variantSku: item.variantSku,
-          expected: approvedQty,
-          received: receivedQty,
-          reason: reasonBySku.get(item.variantSku) || "Not specified",
-        });
+      const sourceQty = Number(sourceInventory.quantity) || 0;
+      if (sourceQty < requestedQty) {
+        throw new Error(
+          `Khong du ton kho nguon cho SKU ${item.variantSku}. Hien co: ${sourceQty}, Can: ${requestedQty}`
+        );
       }
 
-      if (receivedQty <= 0) continue;
+      sourceInventory.quantity = sourceQty - requestedQty;
+      await sourceInventory.save({ session });
 
-      let destinationInventory = await StoreInventory.findOne({
-        storeId: transfer.toStore.storeId,
-        productId: item.productId,
-        variantSku: item.variantSku,
-      })
+      await syncPhysicalSourceInventoryOnReceipt({
+        transfer,
+        item,
+        quantity: requestedQty,
+        session,
+      });
+
+      let destinationInventory = await StoreInventory.findOne(
+        buildInventoryFilter({ storeId: transfer.toStore.storeId, item })
+      )
         .session(session)
         .setOptions({ skipBranchIsolation: true });
 
       if (!destinationInventory) {
         destinationInventory = new StoreInventory({
           storeId: transfer.toStore.storeId,
-          productId: item.productId,
+          productId: item.productId || sourceInventory.productId,
           variantSku: item.variantSku,
           quantity: 0,
           reserved: 0,
@@ -651,70 +574,20 @@ export const receiveTransfer = async (req, res) => {
       }
 
       destinationInventory.quantity =
-        (Number(destinationInventory.quantity) || 0) + receivedQty;
+        (Number(destinationInventory.quantity) || 0) + requestedQty;
       destinationInventory.lastRestockDate = new Date();
-      destinationInventory.lastRestockQuantity = receivedQty;
+      destinationInventory.lastRestockQuantity = requestedQty;
       await destinationInventory.save({ session });
 
-      // =================================================================
-      // PHYSICAL INVENTORY SYNC (RECEIVE)
-      // =================================================================
-      // Only if destination store is a WAREHOUSE
-      if (transfer.toStore.storeCode.startsWith("WH") || transfer.toStore.storeId.toString() === "67ab23743c72b2ff5432c256") {
-          // Verify we have a valid location to put this item.
-          // Strategy: Find a location named "RECEIVING" or similar, OR pick the first active location that allows this product.
-          // For simplicity/fallback, we find the FIRST available location for this store zone.
-          
-          let targetLocation = await WarehouseLocation.findOne({
-               storeId: transfer.toStore.storeId,
-               locationCode: { $regex: `^${transfer.toStore.storeCode}-` },
-               status: "ACTIVE"
-          }).session(session);
-
-          // Try to find a specific "RECEIVING" or "INBOUND" location if possible (Optional improvement)
-          // const specificLoc = await WarehouseLocation.findOne({ locationCode: `${transfer.toStore.storeCode}-RECEIVING` }).session(session);
-          // if (specificLoc) targetLocation = specificLoc;
-
-          if (targetLocation) {
-              // Check if inventory record exists for this SKU at this location
-              let physInv = await Inventory.findOne({
-                  storeId: transfer.toStore.storeId,
-                  sku: item.variantSku,
-                  locationId: targetLocation._id,
-              }).session(session);
-
-              if (physInv) {
-                  physInv.quantity += receivedQty;
-                  physInv.lastReceived = new Date();
-                  await physInv.save({ session });
-              } else {
-                  physInv = new Inventory({
-                      storeId: transfer.toStore.storeId,
-                      sku: item.variantSku,
-                      productId: item.productId,
-                      productName: item.name || item.variantSku,
-                      locationId: targetLocation._id,
-                      locationCode: targetLocation.locationCode,
-                      quantity: receivedQty,
-                      status: "GOOD",
-                      lastReceived: new Date()
-                  });
-                  await physInv.save({ session });
-              }
-              
-              // Update Location Load
-              targetLocation.currentLoad = (targetLocation.currentLoad || 0) + receivedQty;
-              await targetLocation.save({ session });
-              
-          } else {
-               // Bug #3 fix: Log warning AND append to receivingNotes so the mismatch is visible in the record
-               const warnMsg = `[CẢNH BÁO] Không tìm thấy vị trí kho vật lý cho SKU ${item.variantSku} tại ${transfer.toStore.storeCode}. Tồn kho logic đã được cập nhật nhưng tồn kho vật lý CHƯA được đồng bộ.`;
-               console.warn(`[StockTransfer] ${warnMsg}`); // eslint-disable-line no-console
-               // Append to receivingNotes so warehouse staff can see and fix manually
-               transfer.receivingNotes = [transfer.receivingNotes, warnMsg].filter(Boolean).join(" | ");
-          }
-      }
-      // =================================================================
+      await syncPhysicalDestinationInventoryOnReceipt({
+        transfer,
+        item: {
+          ...item.toObject(),
+          productId: item.productId || sourceInventory.productId,
+        },
+        quantity: requestedQty,
+        session,
+      });
 
       await StockMovement.create(
         [
@@ -722,33 +595,40 @@ export const receiveTransfer = async (req, res) => {
             storeId: transfer.toStore.storeId,
             type: "TRANSFER",
             sku: item.variantSku,
-            productId: item.productId,
+            productId: item.productId || sourceInventory.productId,
             productName: item.name || item.variantSku,
             fromLocationCode: transfer.fromStore.storeCode,
             toLocationCode: transfer.toStore.storeCode,
-            quantity: receivedQty,
+            quantity: requestedQty,
             referenceType: "TRANSFER",
             referenceId: transfer.transferNumber,
             performedBy: req.user._id,
             performedByName: actorName,
-            notes: `Receive transfer ${transfer.transferNumber}`,
+            notes: `Transfer confirmed received: ${transfer.transferNumber}`,
           },
         ],
         { session }
       );
 
-      receivedTotal += receivedQty;
+      item.receivedQuantity = requestedQty;
+      item.confirmedQuantity = requestedQty;
+      totalMoved += requestedQty;
     }
 
-    if (receivedTotal <= 0) {
-      throw new Error("Khong co item nao duoc nhan");
+    if (totalMoved <= 0) {
+      throw new Error("Khong co san pham nao duoc xac nhan");
     }
 
-    transfer.status = discrepancies.length > 0 ? "RECEIVED" : "COMPLETED";
+    transfer.status = "COMPLETED";
     transfer.receivedBy = req.user._id;
     transfer.receivedAt = new Date();
-    transfer.receivingNotes = String(req.body.notes || "").trim();
-    transfer.discrepancies = discrepancies;
+    transfer.receivingNotes = [
+      String(req.body.notes || "").trim(),
+      transfer.receivingNotes,
+    ]
+      .filter(Boolean)
+      .join(" | ");
+    transfer.discrepancies = [];
     await transfer.save({ session });
 
     await session.commitTransaction();
@@ -757,51 +637,15 @@ export const receiveTransfer = async (req, res) => {
     return res.json({
       success: true,
       transfer: refreshed,
-      discrepancies,
     });
   } catch (error) {
     await session.abortTransaction();
     return res.status(400).json({
       success: false,
-      message: error.message || "Khong the nhan transfer",
+      message: error.message || "Khong the xac nhan nhan transfer",
     });
   } finally {
     session.endSession();
-  }
-};
-
-export const completeTransfer = async (req, res) => {
-  try {
-    const transfer = await StockTransfer.findById(req.params.id);
-    if (!transfer) {
-      return res.status(404).json({
-        success: false,
-        message: "Khong tim thay transfer",
-      });
-    }
-    if (transfer.status !== "RECEIVED") {
-      return res.status(400).json({
-        success: false,
-        message: "Chi transfer RECEIVED moi duoc complete",
-      });
-    }
-
-    transfer.status = "COMPLETED";
-    transfer.receivingNotes = [transfer.receivingNotes, req.body.notes]
-      .filter(Boolean)
-      .join(" | ");
-    await transfer.save();
-
-    const refreshed = await getTransferForRead(transfer._id);
-    return res.json({
-      success: true,
-      transfer: refreshed,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Khong the complete transfer",
-    });
   }
 };
 
@@ -810,34 +654,16 @@ export const cancelTransfer = async (req, res) => {
   session.startTransaction();
 
   try {
+    if (!isGlobalAdminRequest(req)) {
+      throw new Error("AUTHZ_FORBIDDEN: Only Global Admin can cancel transfers");
+    }
+
     const transfer = await StockTransfer.findById(req.params.id).session(session);
     if (!transfer) {
       throw new Error("Khong tim thay transfer");
     }
     if (!TRANSFER_EDITABLE_STATUSES.has(transfer.status)) {
-      throw new Error("Chi transfer PENDING/APPROVED moi duoc huy");
-    }
-
-    if (transfer.status === "APPROVED") {
-      for (const item of transfer.items) {
-        const approvedQty = Number(item.approvedQuantity) || 0;
-        if (approvedQty <= 0) continue;
-
-        const sourceInventory = await StoreInventory.findOne({
-          storeId: transfer.fromStore.storeId,
-          productId: item.productId,
-          variantSku: item.variantSku,
-        })
-          .session(session)
-          .setOptions({ skipBranchIsolation: true });
-
-        if (!sourceInventory) continue;
-        sourceInventory.reserved = Math.max(
-          0,
-          (Number(sourceInventory.reserved) || 0) - approvedQty
-        );
-        await sourceInventory.save({ session });
-      }
+      throw new Error("Chi transfer CREATED moi duoc huy");
     }
 
     transfer.status = "CANCELLED";
@@ -870,8 +696,7 @@ export default {
   getTransferById,
   approveTransfer,
   rejectTransfer,
-  shipTransfer,
-  receiveTransfer,
-  completeTransfer,
+  confirmShipment,
+  confirmReceived,
   cancelTransfer,
 };

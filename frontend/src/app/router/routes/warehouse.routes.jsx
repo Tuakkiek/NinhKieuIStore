@@ -58,13 +58,30 @@ const warehouseRoutes = (
     >
       <Route path="/warehouse-staff" element={<WarehouseStaffDashboard />} />
       <Route path="/warehouse-staff/receive-goods" element={<ReceiveGoodsPage />} />
-      <Route path="/warehouse-staff/pick-orders" element={<PickOrdersPage />} />
       <Route path="/warehouse-staff/transfer" element={<TransferStockPage />} />
       <Route
         path="/warehouse-staff/create-transfer"
         element={<Navigate to="/warehouse-staff/transfer?tab=branch" replace />}
       />
       <Route path="/warehouse-staff/devices" element={<DeviceManagementPage />} />
+    </Route>
+
+    <Route
+      element={
+        <ProtectedRoute
+          allowedPermissions={[
+            "orders.read",
+            "warehouse.read",
+            "warehouse.write",
+            "order.status.manage.warehouse",
+            "order.status.manage",
+          ]}
+        >
+          <DashboardLayout />
+        </ProtectedRoute>
+      }
+    >
+      <Route path="/warehouse-staff/pick-orders" element={<PickOrdersPage />} />
     </Route>
   </>
 );

@@ -543,7 +543,7 @@ const ProductsPage = ({ category: forcedCategory } = {}) => {
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
             {searchQuery
-              ? `Ket qua tim kiem: "${searchQuery}"`
+              ? `Kết quả tìm kiếm: "${searchQuery}"`
               : modelParam
                 ? `${categoryLabel} ${modelParam}`
                 : categoryLabel}

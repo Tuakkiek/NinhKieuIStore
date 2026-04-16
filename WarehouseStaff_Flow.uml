@@ -1,0 +1,63 @@
+@startuml Warehouse Staff Business Flow
+
+!theme plain
+
+actor "Warehouse\nStaff" as WS
+actor "Manager" as MGR
+actor "OMS" as OMS
+
+rectangle "Warehouse System" {
+  usecase "Login & Select\nBranch" as UC1
+  usecase "View Dashboard" as UC2
+  usecase "Goods Receipt" as UC3
+  usecase "Pick Orders" as UC4
+  usecase "Stock Transfer" as UC5
+  usecase "Cycle Count" as UC6
+  usecase "Device Mgmt" as UC7
+}
+
+rectangle "Inventory" {
+  usecase "Update Qty" as INV1
+  usecase "StockMovement" as INV2
+}
+
+rectangle "Orders" {
+  usecase "Update Status" as ORD1
+}
+
+WS --> UC1
+UC1 ..> UC2 : <<include>>
+UC2 ..> UC3 : <<extend>>
+UC2 ..> UC4 : <<extend>>
+UC2 ..> UC5 : <<extend>>
+UC2 ..> UC6 : <<extend>>
+
+UC3 ..> INV1 : GRN Complete
+UC3 ..> INV2 : INBOUND
+UC4 ..> INV1 : Pick Complete
+UC4 ..> INV2 : OUTBOUND
+UC4 ..> ORD1 : PREPARING_SHIPMENT
+UC5 ..> MGR : Request Approve
+MGR ..> UC5 : Approved
+UC5 ..> INV1 : Transfer Complete
+UC5 ..> INV2 : TRANSFER
+UC6 ..> INV1 : Adjustment
+UC6 ..> INV2 : ADJUSTMENT
+UC7 ..> INV1 : Device Assign
+
+note right of UC4
+  Pick List:
+  - Optimal locations
+  - SKU + Expected Qty
+  - Scan validation
+end note
+
+note right of UC3
+  Flow:
+  1. Scan PO QR
+  2. Scan SKU → Suggest Location
+  3. Confirm qty
+  4. Auto-sync Stores
+end note
+
+@enduml

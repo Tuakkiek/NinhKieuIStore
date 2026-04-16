@@ -19,6 +19,8 @@
     "seed:role-definitions": "node src/scripts/seed-role-definitions.js",
     "seed:permission-groups": "node src/scripts/seed-permission-groups.js",
     "migrate:order-status-stage": "node src/scripts/migrate-order-status-stage.js",
+    "migrate:order-variant-sku:dry-run": "node src/scripts/backfill-order-variant-sku.js",
+    "migrate:order-variant-sku:apply": "node src/scripts/backfill-order-variant-sku.js --apply",
     "migrate:order-audit-baseline": "node src/scripts/migrate-order-audit-baseline.js",
     "migrate:pricing-availability-refactor": "node src/scripts/migrate-pricing-availability-refactor.js",
     "migrate:review-media:dry-run": "node src/scripts/migrate-review-media-to-cloudinary.js --dry-run",

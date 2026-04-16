@@ -595,11 +595,13 @@ export const getAllEmployees = async (req, res) => {
       }
     }
 
-    // â”€â”€ KILL-SWITCH: Use req.authz.activeBranchId â”€â”€
+    // Branch-scoped actor: limit employee list to allowed branches.
     if (!req.authz?.isGlobalAdmin) {
-      if (req.authz?.activeBranchId) {
-        filter.storeLocation = req.authz.activeBranchId;
-      } else {
+      const allowedBranchIds = toUniqueStrings(req.authz?.allowedBranchIds || []);
+      const requestedStoreLocation =
+        storeLocation && storeLocation !== "ALL" ? normalizeText(storeLocation) : "";
+
+      if (!allowedBranchIds.length) {
         return res.json({
           success: true,
           data: {
@@ -612,6 +614,26 @@ export const getAllEmployees = async (req, res) => {
             },
           },
         });
+      }
+
+      if (requestedStoreLocation) {
+        if (!allowedBranchIds.includes(requestedStoreLocation)) {
+          return res.json({
+            success: true,
+            data: {
+              employees: [],
+              pagination: {
+                currentPage: 1,
+                totalPages: 0,
+                total: 0,
+                limit: limitNum,
+              },
+            },
+          });
+        }
+        filter.storeLocation = requestedStoreLocation;
+      } else {
+        filter.storeLocation = { $in: allowedBranchIds };
       }
     } else {
       // Global Admin can filter by store

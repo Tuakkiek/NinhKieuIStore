@@ -12,9 +12,43 @@ import { getStatusStage, getStatusText } from "@/shared/lib/utils";
 
 import { useAuthStore, usePermission } from "@/features/auth";
 
+const REASON_LABELS = {
+  NO_INVENTORY_FOR_SKU: "Không có tồn kho",
+  ZERO_QUANTITY: "Hết hàng",
+  NOT_GOOD_STATUS: "Hàng không ở trạng thái bán được",
+  MISSING_LOCATION_CODE: "Chưa gán vị trí kho",
+  STORE_MISMATCH: "Khác chi nhánh",
+  SKU_NOT_RESOLVED: "Thiếu SKU",
+};
+
+const getReasonLabel = (reason) => {
+  const normalized = String(reason || "").trim();
+  return REASON_LABELS[normalized] || "Không thể lấy hàng";
+};
+
+const getReasonBadgeClassName = (reason) => {
+  const normalized = String(reason || "").trim();
+  if (normalized === "SKU_NOT_RESOLVED") {
+    return "bg-orange-100 text-orange-700 border border-orange-200";
+  }
+  if (normalized) {
+    return "bg-red-100 text-red-700 border border-red-200";
+  }
+  return "";
+};
+
 const PickOrdersPage = () => {
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const { user, activeBranchId, authz, authorization } = useAuthStore();
+  const authSnapshot = authorization || authz || null;
+  const requiresBranchAssignment = authSnapshot?.requiresBranchAssignment === true;
+  const canReadOrders = usePermission("orders.read");
+  const canReadWarehouse = usePermission("warehouse.read");
+  const canWriteWarehouse = usePermission("warehouse.write");
+  const canFinalizeOrder = usePermission(
+    ["order.status.manage.warehouse", "order.status.manage"],
+    { mode: "any" }
+  );
   const canCompleteInStorePick = usePermission("order.pick.complete.instore");
   const [searchParams] = useSearchParams();
   const orderId = searchParams.get("orderId");
@@ -29,21 +63,52 @@ const PickOrdersPage = () => {
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [unpickableItems, setUnpickableItems] = useState([]);
 
+  const parseApiErrorMessage = (error, fallbackMessage) => {
+    const status = error?.response?.status;
+    const backendMessage = error?.response?.data?.message;
+    if (backendMessage) return backendMessage;
+    if (status === 403) return "Bạn không có quyền thực hiện thao tác này.";
+    if (status === 409) return "Dữ liệu đã thay đổi, vui lòng tải lại và thử lại.";
+    if (status === 400) return "Dữ liệu gửi lên không hợp lệ.";
+    return fallbackMessage;
+  };
+
+  const ensureBranchContext = () => {
+    if (requiresBranchAssignment && !activeBranchId) {
+      toast.error("Chưa chọn chi nhánh làm việc. Vui lòng chọn chi nhánh rồi thử lại.");
+      return false;
+    }
+    return true;
+  };
+
   useEffect(() => {
     if (orderId) { loadPickList(orderId); } else { loadPendingOrders(); }
   }, [canCompleteInStorePick, orderId]);
 
   const loadPendingOrders = async () => {
+    if (!canReadOrders) {
+      setOrders([]);
+      toast.error("Bạn không có quyền đọc danh sách đơn hàng.");
+      return;
+    }
+
+    if (!ensureBranchContext()) {
+      setOrders([]);
+      return;
+    }
+
     try {
       setLoading(true);
-      const [confirmedRes, pickingRes] = await Promise.all([
+      const [confirmedResult, pickingResult] = await Promise.allSettled([
         orderAPI.getByStage("CONFIRMED", { limit: 200 }),
         orderAPI.getByStage("PICKING", { limit: 200 }),
       ]);
 
+      const confirmedRes = confirmedResult.status === "fulfilled" ? confirmedResult.value : null;
+      const pickingRes = pickingResult.status === "fulfilled" ? pickingResult.value : null;
       const merged = [
-        ...(confirmedRes.data.orders || []),
-        ...(pickingRes.data.orders || []),
+        ...(confirmedRes?.data?.orders || []),
+        ...(pickingRes?.data?.orders || []),
       ];
 
       const uniqueById = Array.from(
@@ -58,7 +123,13 @@ const PickOrdersPage = () => {
             )
           : uniqueById;
       setOrders(visibleOrders);
-    } catch { toast.error("Không thể tải đơn hàng"); } finally { setLoading(false); }
+
+      if (confirmedResult.status === "rejected" || pickingResult.status === "rejected") {
+        toast.error("Một phần dữ liệu đơn hàng không tải được. Danh sách đã hiển thị phần khả dụng.");
+      }
+    } catch (e) {
+      toast.error(parseApiErrorMessage(e, "Không thể tải đơn hàng"));
+    } finally { setLoading(false); }
   };
 
   const getFilteredOrders = () => {
@@ -70,6 +141,20 @@ const PickOrdersPage = () => {
   };
 
   const loadPickList = async (id) => {
+    if (!id) {
+      toast.error("Không xác định được đơn hàng cần lấy hàng.");
+      return;
+    }
+
+    if (!canReadWarehouse) {
+      toast.error("Bạn không có quyền xem pick list của kho.");
+      return;
+    }
+
+    if (!ensureBranchContext()) {
+      return;
+    }
+
     try {
       setLoading(true);
       const res = await api.get(`/warehouse/pick-list/${id}`);
@@ -91,6 +176,7 @@ const PickOrdersPage = () => {
         .filter((item) => item.locations.length > 0);
 
       const unpickable = rawPickList.filter((item) => !Array.isArray(item?.locations) || item.locations.length === 0);
+      const unresolvedSkuCount = unpickable.filter((item) => item?.reason === "SKU_NOT_RESOLVED").length;
 
       setPickList(pickable);
       setUnpickableItems(unpickable);
@@ -99,11 +185,50 @@ const PickOrdersPage = () => {
 
       if (pickable.length === 0) {
         setStep(3);
-        toast.error("Không có vị trí kho khả dụng để lấy hàng cho đơn này");
+        const reasonCodes = Array.from(
+          new Set(
+            unpickable
+              .map((item) => String(item?.reason || "").trim())
+              .filter(Boolean)
+          )
+        );
+        const reasonText = reasonCodes
+          .map((code) => getReasonLabel(code))
+          .join(", ");
+        toast.error(
+          unresolvedSkuCount > 0
+            ? "Đơn hàng có sản phẩm thiếu SKU, chưa thể tạo pick list khả dụng"
+            : reasonText
+              ? `Không thể lấy hàng do: ${reasonText}`
+              : "Không thể lấy hàng: chưa xác định được nguyên nhân"
+        );
       } else {
         setStep(2);
       }
-    } catch { toast.error("Không thể tải pick list"); } finally { setLoading(false); }
+    } catch (e) {
+      toast.error(parseApiErrorMessage(e, "Không thể tải pick list"));
+    } finally { setLoading(false); }
+  };
+
+  const refreshSelectedOrderStatus = async () => {
+    if (!selectedOrder?._id) return;
+    try {
+      const latestOrderRes = await orderAPI.getById(selectedOrder._id);
+      const latestOrder = latestOrderRes?.data?.order;
+      if (!latestOrder?._id) return;
+
+      setSelectedOrder((prev) => ({
+        ...(prev || {}),
+        _id: latestOrder._id,
+        orderNumber: latestOrder.orderNumber || prev?.orderNumber,
+        orderSource: latestOrder.orderSource || prev?.orderSource,
+        fulfillmentType: latestOrder.fulfillmentType || prev?.fulfillmentType,
+        status: latestOrder.status || prev?.status,
+        statusStage: getStatusStage(latestOrder.status || prev?.status || ""),
+      }));
+    } catch {
+      // Keep pick flow resilient even if background refresh fails.
+    }
   };
 
   const getNextStatusAfterPick = () => {
@@ -120,6 +245,11 @@ const PickOrdersPage = () => {
       toast.error("Không xác định được đơn hàng");
       return;
     }
+    if (!canFinalizeOrder) {
+      toast.error("Bạn không có quyền xác nhận hoàn tất xuất kho.");
+      return;
+    }
+    if (!ensureBranchContext()) return;
 
     const nextStatus = getNextStatusAfterPick();
     if (!nextStatus) {
@@ -129,11 +259,45 @@ const PickOrdersPage = () => {
 
     setIsFinalizing(true);
     try {
-      await api.put(`/orders/${selectedOrder._id}/status`, {
-        status: nextStatus,
+      const latestOrderRes = await orderAPI.getById(selectedOrder._id);
+      const latestStatus = String(latestOrderRes?.data?.order?.status || "").trim();
+      const alreadyAdvancedStatuses = new Set([
+        "PREPARING_SHIPMENT",
+        "SHIPPING",
+        "OUT_FOR_DELIVERY",
+        "DELIVERED",
+        "PICKED_UP",
+        "COMPLETED",
+      ]);
+
+      // Pick flow may already have promoted status in backend during /warehouse/pick.
+      // In that case, skip manual status update to avoid permission conflicts.
+      if (alreadyAdvancedStatuses.has(latestStatus)) {
+        toast.success("Đơn đã được cập nhật trạng thái sau khi lấy hàng.");
+        navigate("/warehouse-staff");
+        return;
+      }
+
+      const basePayload = {
         note: "Warehouse completed picking, ready for POS staff handover",
-        notifyPOS: nextStatus === "PREPARING_SHIPMENT",
-      });
+        notifyPOS: true,
+      };
+      try {
+        await api.put(`/orders/${selectedOrder._id}/status`, {
+          ...basePayload,
+          status: nextStatus,
+        });
+      } catch (firstError) {
+        // Fallback for stricter state-machine rules in some deployments.
+        if (nextStatus !== "PREPARING_SHIPMENT") {
+          await api.put(`/orders/${selectedOrder._id}/status`, {
+            ...basePayload,
+            status: "PREPARING_SHIPMENT",
+          });
+        } else {
+          throw firstError;
+        }
+      }
 
       toast.success(
         nextStatus === "PREPARING_SHIPMENT"
@@ -142,7 +306,7 @@ const PickOrdersPage = () => {
       );
       navigate("/warehouse-staff");
     } catch (e) {
-      toast.error(e.response?.data?.message || "Không thể cập nhật trạng thái đơn");
+      toast.error(parseApiErrorMessage(e, "Không thể cập nhật trạng thái đơn"));
     } finally {
       setIsFinalizing(false);
     }
@@ -161,7 +325,7 @@ const PickOrdersPage = () => {
                note: `SỰ CỐ KHO: ${note}`,
            });
            toast.success("Đã báo cáo sự cố");
-       } catch (e) {
+       } catch {
            toast.error("Lỗi khi báo cáo sự cố");
        } finally {
            setLoading(false);
@@ -169,6 +333,12 @@ const PickOrdersPage = () => {
   };
 
   const handlePickItem = async () => {
+    if (!canWriteWarehouse) {
+      toast.error("Bạn không có quyền xác nhận lấy hàng trong kho.");
+      return;
+    }
+    if (!ensureBranchContext()) return;
+
     const item = pickList[currentItemIndex];
     const loc = item?.locations?.[currentLocationIndex];
     const quantity = Number(loc?.pickQty || loc?.quantity || 0);
@@ -183,6 +353,11 @@ const PickOrdersPage = () => {
       return;
     }
 
+    if (!selectedOrder?._id) {
+      toast.error("Không xác định được đơn hàng để thực hiện lấy hàng.");
+      return;
+    }
+
     try {
       setLoading(true);
       await api.post("/warehouse/pick", {
@@ -191,6 +366,7 @@ const PickOrdersPage = () => {
         locationCode: loc.locationCode,
         quantity,
       });
+      await refreshSelectedOrderStatus();
       toast.success(`Đã lấy ${quantity} ${item.productName}`);
 
       if (currentLocationIndex < item.locations.length - 1) {
@@ -202,7 +378,7 @@ const PickOrdersPage = () => {
         setStep(3);
       }
     } catch (e) {
-      toast.error(e.response?.data?.message || "Lỗi khi lấy hàng");
+      toast.error(parseApiErrorMessage(e, "Lỗi khi lấy hàng"));
     } finally {
       setLoading(false);
     }
@@ -347,6 +523,14 @@ const PickOrdersPage = () => {
     const isFullSuccess = unpickableItems.length === 0;
     const isPartial = pickList.length > 0 && unpickableItems.length > 0;
     const isFailed = pickList.length === 0;
+    const hasMissingSku = unpickableItems.some((item) => item?.reason === "SKU_NOT_RESOLVED");
+    const unpickableReasonCodes = Array.from(
+      new Set(
+        unpickableItems
+          .map((item) => String(item?.reason || "").trim())
+          .filter(Boolean)
+      )
+    );
     const nextStatus = getNextStatusAfterPick();
     const nextStatusLabel =
       nextStatus === "PREPARING_SHIPMENT" ? "POS bàn giao cho khách" : "Đã hoàn tất lấy hàng";
@@ -374,9 +558,24 @@ const PickOrdersPage = () => {
               </h3>
               <p className="text-gray-600">
                 {isFailed
-                  ? `Đơn hàng ${selectedOrder.orderNumber} không có vị trí lấy hàng khả dụng.`
+                  ? hasMissingSku
+                    ? `Đơn hàng ${selectedOrder.orderNumber} có sản phẩm thiếu SKU, cần bổ sung dữ liệu trước khi xuất kho.`
+                    : `Đơn hàng ${selectedOrder.orderNumber} không thể lấy hàng với dữ liệu tồn kho hiện tại.`
                   : `Đã xử lý xong yêu cầu lấy hàng cho đơn ${selectedOrder.orderNumber}`}
               </p>
+              {isFailed && unpickableReasonCodes.length > 0 && (
+                <div className="mt-3 text-left max-w-md mx-auto">
+                  <p className="text-sm font-medium text-red-700 mb-1">Không thể lấy hàng do:</p>
+                  <ul className="list-disc list-inside text-sm text-red-700 space-y-1">
+                    {unpickableReasonCodes.map((code) => (
+                      <li key={code}>
+                        {getReasonLabel(code)}
+                        <span className="text-xs text-red-500 ml-1">({code})</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               {!isFailed && (
                 <p className="text-sm mt-2 text-blue-700 font-medium">
                   Trạng thái tiếp theo: {nextStatusLabel}
@@ -390,7 +589,7 @@ const PickOrdersPage = () => {
             </div>
             <div className="space-y-2">
               {pickList.map((item, i) => (
-                <div key={i} className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                <div key={i} className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-100">
                   <div>
                     <p className="font-medium">* {item.productName || "Sản phẩm không tên"}</p>
                     <p className="text-sm text-gray-600">SKU: {item.sku}</p>
@@ -404,12 +603,21 @@ const PickOrdersPage = () => {
                 </div>
               ))}
               {unpickableItems.map((item, i) => (
-                <div key={`u-${i}`} className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
+                <div
+                  key={`u-${i}`}
+                  className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200"
+                >
                   <div>
                     <p className="font-medium text-red-700">! {item.productName || "Sản phẩm không tên"}</p>
-                    <p className="text-sm text-gray-600">SKU: {item.sku}</p>
+                    <p className="text-sm text-gray-600">SKU: {item.sku || "N/A"}</p>
                   </div>
-                  <Badge variant="destructive">Thiếu vị trí kho</Badge>
+                  <Badge
+                    variant="outline"
+                    className={getReasonBadgeClassName(item?.reason)}
+                    title={`${getReasonLabel(item?.reason)}\n(code: ${String(item?.reason || "UNKNOWN")})`}
+                  >
+                    {getReasonLabel(item?.reason)}
+                  </Badge>
                 </div>
               ))}
             </div>
@@ -419,7 +627,7 @@ const PickOrdersPage = () => {
                 In phiếu xuất
               </Button>
               {isFullSuccess ? (
-                <Button onClick={handleFinalizePick} className="flex-1" disabled={isFinalizing}>
+                <Button onClick={handleFinalizePick} className="flex-1" disabled={isFinalizing || !canFinalizeOrder}>
                   {isFinalizing ? "Đang cập nhật..." : "Xác nhận hoàn tất"}
                 </Button>
               ) : (
