@@ -687,6 +687,15 @@ export const createEmployee = async (req, res) => {
       avatar,
       storeLocation,
     } = req.body;
+    const normalizedPassword = normalizeText(password);
+    if (!normalizedPassword) {
+      return res.status(400).json({
+        success: false,
+        code: "USER_PASSWORD_REQUIRED",
+        message: "Mật khẩu không được để trống",
+      });
+    }
+
     const canonicalRoleRequested = hasCanonicalRolePayload(req.body);
     const requestedBranchIds = collectBranchIds(req.body);
     const fallbackRequestedRole =
@@ -709,15 +718,39 @@ export const createEmployee = async (req, res) => {
       role: legacyRole,
       storeLocation: requestedPrimaryBranchId,
     });
+    const resolvedPrimaryBranchId = effectiveStoreLocation || requestedPrimaryBranchId;
+    if (!resolvedPrimaryBranchId) {
+      return res.status(400).json({
+        success: false,
+        code: "USER_BRANCH_REQUIRED",
+        message: "Nhân viên phải được gán ít nhất một chi nhánh hợp lệ",
+      });
+    }
+
     const authzWrite = deriveAuthzWriteFromLegacyInput({
       role: legacyRole,
-      storeLocation: effectiveStoreLocation,
+      storeLocation: resolvedPrimaryBranchId,
       assignedBy: req.user?._id,
     });
 
-    let branchAssignments = authzWrite.branchAssignments;
-    if (branchAssignments.length === 1 && requestedBranchIds.length > 0) {
-      const assignmentRoles = branchAssignments[0].roles || [];
+    let branchAssignments = normalizeBranchAssignmentsPayload(
+      canonicalRoleRequested ? req.body?.branchAssignments || [] : authzWrite.branchAssignments,
+    );
+
+    if (branchAssignments.length === 0) {
+      branchAssignments = [
+        {
+          storeId: resolvedPrimaryBranchId,
+          roles: canonicalRoleRequested ? normalizeBranchRoles(req.body?.branchRoles || [legacyRole]) : normalizeBranchRoles([legacyRole]),
+          status: "ACTIVE",
+          isPrimary: true,
+          assignedBy: req.user?._id || undefined,
+        },
+      ];
+    } else if (requestedBranchIds.length > 0) {
+      const assignmentRoles = normalizeBranchRoles(
+        branchAssignments[0]?.roles?.length ? branchAssignments[0].roles : [legacyRole],
+      );
       branchAssignments = requestedBranchIds.map((branchId, index) => ({
         storeId: branchId,
         roles: assignmentRoles,
@@ -727,25 +760,33 @@ export const createEmployee = async (req, res) => {
       }));
     }
 
+    if (!branchAssignments.length || !branchAssignments[0]?.storeId) {
+      return res.status(400).json({
+        success: false,
+        code: "USER_BRANCH_REQUIRED",
+        message: "Nhân viên phải được gán ít nhất một chi nhánh hợp lệ",
+      });
+    }
+
     const user = await User.create({
       fullName,
       phoneNumber,
       email,
       province,
-      password,
+      password: normalizedPassword,
       role: legacyRole,
       roles: [],
       permissions: [],
       avatar: avatar || "",
       systemRoles: canonicalRoleRequested ? [] : authzWrite.systemRoles,
       taskRoles: canonicalRoleRequested ? [] : authzWrite.taskRoles,
-      branchAssignments: canonicalRoleRequested ? [] : branchAssignments,
+      branchAssignments,
       authzState: canonicalRoleRequested ? "ACTIVE" : authzWrite.authzState,
       authzVersion: 2,
       permissionsVersion: 1,
       authorizationVersion: 1,
       permissionMode: "ROLE_FALLBACK",
-      storeLocation: effectiveStoreLocation,
+      storeLocation: resolvedPrimaryBranchId,
     });
 
     let permissionSync = null;
@@ -753,22 +794,35 @@ export const createEmployee = async (req, res) => {
     const roleAssignmentPayload = canonicalRoleRequested
       ? {
           ...req.body,
-          storeLocation: effectiveStoreLocation,
-          primaryBranchId: requestedPrimaryBranchId || effectiveStoreLocation,
+          branchAssignments,
+          storeLocation: resolvedPrimaryBranchId,
+          primaryBranchId: resolvedPrimaryBranchId,
         }
       : {
           roleKeys: [legacyRole],
-          branchIds: requestedBranchIds,
-          storeLocation: effectiveStoreLocation,
-          primaryBranchId: requestedPrimaryBranchId || effectiveStoreLocation,
+          branchIds: requestedBranchIds.length > 0 ? requestedBranchIds : [resolvedPrimaryBranchId],
+          storeLocation: resolvedPrimaryBranchId,
+          primaryBranchId: resolvedPrimaryBranchId,
         };
 
     try {
+      const resolvedAssignments = await resolveCanonicalRoleAssignmentsFromPayload(
+        req,
+        roleAssignmentPayload,
+      );
+      if (!resolvedAssignments.length) {
+        throw toAppError(
+          400,
+          "AUTHZ_ROLE_ASSIGNMENTS_REQUIRED",
+          "At least one valid role assignment is required",
+        );
+      }
+
       roleSync = await syncUserRoleAssignments({
         user,
-        assignments: await resolveCanonicalRoleAssignmentsFromPayload(req, roleAssignmentPayload),
+        assignments: resolvedAssignments,
         actorUserId: req.user?._id || null,
-        primaryBranchId: requestedPrimaryBranchId || effectiveStoreLocation,
+        primaryBranchId: resolvedPrimaryBranchId,
         reason: "user_create",
       });
     } catch (error) {
@@ -1001,19 +1055,29 @@ export const updateEmployee = async (req, res) => {
     const roleAssignmentPayload = canonicalRoleRequested
       ? {
           ...req.body,
+          branchAssignments: nextBranchAssignments,
           storeLocation: primaryBranchId || nextStoreLocation,
           primaryBranchId: primaryBranchId || nextStoreLocation,
         }
       : {
           roleKeys: [nextRole],
-          branchIds: requestedBranchIds,
+          branchIds: requestedBranchIds.length > 0 ? requestedBranchIds : [primaryBranchId || nextStoreLocation],
           storeLocation: primaryBranchId || nextStoreLocation,
           primaryBranchId: primaryBranchId || nextStoreLocation,
         };
 
+    const resolvedAssignments = await resolveCanonicalRoleAssignmentsFromPayload(req, roleAssignmentPayload);
+    if (!resolvedAssignments.length) {
+      throw toAppError(
+        400,
+        "AUTHZ_ROLE_ASSIGNMENTS_REQUIRED",
+        "At least one valid role assignment is required",
+      );
+    }
+
     roleSync = await syncUserRoleAssignments({
       user,
-      assignments: await resolveCanonicalRoleAssignmentsFromPayload(req, roleAssignmentPayload),
+      assignments: resolvedAssignments,
       actorUserId: req.user?._id || null,
       primaryBranchId: primaryBranchId || nextStoreLocation,
       reason: "user_update",
