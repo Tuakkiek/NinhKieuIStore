@@ -564,7 +564,7 @@ export const pickItem = async (req, res) => {
       });
     }
 
-    if (!normalizeSku(orderItem?.variantSku) && !normalizeSku(orderItem?.sku)) {
+    if (!normalizeSku(orderItem?.variantSku)) {
       orderItem.variantSku = normalizedSku;
     }
 
@@ -733,9 +733,16 @@ export const pickItem = async (req, res) => {
         : 0,
     });
   } catch (error) {
-    await session.abortTransaction();
-    console.error("Error picking item:", error);
-    res.status(500).json({ success: false, message: "Lỗi khi lấy hàng", error: error.message });
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
+    console.error("❌ [WAREHOUSE_ERROR] Error picking item:", error);
+    const status = error.httpStatus || error.status || 500;
+    res.status(status).json({
+      success: false,
+      code: error.code || "PICK_FAILED",
+      message: error.message || "Lỗi khi lấy hàng",
+    });
   } finally {
     session.endSession();
   }

@@ -132,13 +132,13 @@ const PickOrdersPage = () => {
     } finally { setLoading(false); }
   };
 
-  const getFilteredOrders = () => {
+    const getFilteredOrders = () => {
       if (filterMode === "ALL") return orders;
-      return orders.filter(
-        (o) =>
-          o?.pickerInfo?.pickerId?.toString?.() === user?._id?.toString?.()
-      );
-  };
+      return orders.filter((o) => {
+        const pickerId = o?.pickerInfo?.pickerId?._id || o?.pickerInfo?.pickerId;
+        return pickerId?.toString() === user?._id?.toString();
+      });
+    };
 
   const loadPickList = async (id) => {
     if (!id) {
@@ -417,8 +417,12 @@ const PickOrdersPage = () => {
                         <p className="text-sm text-gray-600">
                           Hình thức: {getStatusText(order.fulfillmentType || "HOME_DELIVERY")}
                         </p>
-                        {order.pickerInfo?.pickerName && (
-                            <p className="text-xs text-blue-600 font-medium">Picker: {order.pickerInfo.pickerName} {order.pickerInfo.pickerId === user?._id && "(Tôi)"}</p>
+                        {(order.pickerInfo?.pickerName || order.pickerInfo?.pickerId?.fullName) && (
+                          <p className="text-xs text-blue-600 font-medium tracking-tight">
+                            Người lấy hàng: {order.pickerInfo?.pickerName || order.pickerInfo?.pickerId?.fullName}{" "}
+                            {(order.pickerInfo?.pickerId?._id || order.pickerInfo?.pickerId) === user?._id &&
+                              "(Tôi)"}
+                          </p>
                         )}
                         {order.assignedStore?.storeName && (
                           <p className="text-xs text-gray-500">

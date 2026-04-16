@@ -89,27 +89,29 @@ const hasCapabilityValues = (capabilities = {}) =>
   );
 
 const isCapabilityAllowedTarget = (capabilities = {}, targetStatus) => {
-  if (targetStatus === "PREPARING_SHIPMENT") {
-    return Boolean(capabilities.canCompleteInStorePick || capabilities.canManageWarehouse);
-  }
-
   if (capabilities.canManageAll) {
     return true;
   }
 
+  const allowedSet = new Set();
+
+  if (targetStatus === "PREPARING_SHIPMENT") {
+    if (capabilities.canCompleteInStorePick || capabilities.canManageWarehouse) return true;
+  }
+
   if (capabilities.canManageCoordinator) {
-    return [
+    [
       "CONFIRMED",
       "PROCESSING",
       "SHIPPING",
       "CANCELLED",
       "CANCEL_REFUND_PENDING",
       "INCIDENT_REFUND_PROCESSING",
-    ].includes(targetStatus);
+    ].forEach((s) => allowedSet.add(s));
   }
 
   if (capabilities.canManageWarehouse) {
-    return [
+    [
       "PROCESSING",
       "PREPARING",
       "PREPARING_SHIPMENT",
@@ -118,18 +120,18 @@ const isCapabilityAllowedTarget = (capabilities = {}, targetStatus) => {
       "CANCELLED",
       "CANCEL_REFUND_PENDING",
       "INCIDENT_REFUND_PROCESSING",
-    ].includes(targetStatus);
+    ].forEach((s) => allowedSet.add(s));
   }
 
   if (capabilities.canManageTask) {
-    return ["SHIPPING", "DELIVERED", "RETURNED"].includes(targetStatus);
+    ["SHIPPING", "DELIVERED", "RETURNED"].forEach((s) => allowedSet.add(s));
   }
 
   if (capabilities.canManagePos) {
-    return ["CONFIRMED", "PENDING_PAYMENT"].includes(targetStatus);
+    ["CONFIRMED", "PENDING_PAYMENT"].forEach((s) => allowedSet.add(s));
   }
 
-  return false;
+  return allowedSet.has(targetStatus);
 };
 
 export const canTransitionOrderStatus = ({

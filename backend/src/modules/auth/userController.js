@@ -560,38 +560,60 @@ export const getAllEmployees = async (req, res) => {
     const pageNum = Math.max(1, parseInt(page));
     const limitNum = Math.min(100, Math.max(1, parseInt(limit))); // giá»›i háº¡n tá»‘i Ä‘a 100
 
-    // Äiá»u kiá»‡n lá»c
+    // Base employee roles list
+    const EMPLOYEE_ROLES = [
+      "SALES_STAFF",
+      "WAREHOUSE_MANAGER",
+      "PRODUCT_MANAGER",
+      "ORDER_MANAGER",
+      "SHIPPER",
+      "ADMIN",
+      "BRANCH_ADMIN",
+      "POS_STAFF",
+      "CASHIER",
+    ];
+
+    // Điều kiện lọc cơ bản - chấp nhận cả role chính hoặc role trong branchAssignments
     const filter = {
-      role: {
-        $in: [
-          "SALES_STAFF",
-          "WAREHOUSE_MANAGER",
-          "PRODUCT_MANAGER",
-          "ORDER_MANAGER",
-          "SHIPPER",
-          "ADMIN",
-          "BRANCH_ADMIN",
-          "POS_STAFF",
-          "CASHIER",
-        ],
-      },
+      $or: [
+        { role: { $in: EMPLOYEE_ROLES } },
+        { "branchAssignments.roles": { $in: EMPLOYEE_ROLES } },
+      ],
     };
 
-    // TÃ¬m kiáº¿m theo tÃªn hoáº·c email hoáº·c sá»‘ Ä‘iá»‡n thoáº¡i
+    // Tìm kiếm theo tên hoặc email hoặc số điện thoại
     if (search.trim()) {
-      filter.$or = [
-        { fullName: { $regex: search.trim(), $options: "i" } },
-        { email: { $regex: search.trim(), $options: "i" } },
-        { phoneNumber: { $regex: search.trim(), $options: "i" } },
-      ];
+      const searchRegex = { $regex: search.trim(), $options: "i" };
+      const searchFilter = {
+        $or: [
+          { fullName: searchRegex },
+          { email: searchRegex },
+          { phoneNumber: searchRegex },
+        ],
+      };
+
+      // Wrap current filter and search in $and
+      const existingFilter = { ...filter };
+      filter.$and = [existingFilter, searchFilter];
+      delete filter.$or;
     }
 
-    // Lá»c theo role cá»¥ thá»ƒ (náº¿u cÃ³ truyá»n)
+    // Lọc theo role cụ thể (nếu có truyền) - Additive check
     if (role && role !== "ALL") {
-      if (role.includes(",")) {
-        filter.role = { $in: role.split(",") };
+      const rolesToFilter = role.includes(",") ? role.split(",") : [role];
+      const roleSpecificFilter = {
+        $or: [
+          { role: { $in: rolesToFilter } },
+          { "branchAssignments.roles": { $in: rolesToFilter } },
+        ],
+      };
+
+      if (filter.$and) {
+        filter.$and.push(roleSpecificFilter);
       } else {
-        filter.role = role;
+        const currentFilter = { ...filter };
+        filter.$and = [currentFilter, roleSpecificFilter];
+        delete filter.$or;
       }
     }
 
@@ -1154,7 +1176,7 @@ export const updateUserRoles = async (req, res) => {
 export const getAllShippers = async (req, res) => {
   try {
     const filter = {
-      role: "SHIPPER",
+      $or: [{ role: "SHIPPER" }, { taskRoles: "SHIPPER" }],
       status: "ACTIVE",
     };
 
