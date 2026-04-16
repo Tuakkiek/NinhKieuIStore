@@ -33,13 +33,17 @@ const INSTALLMENT_BADGE_OPTIONS = [
   { value: "Trả góp 0%, trả trước 0đ", label: "Trả góp 0%, trả trước 0đ" },
 ];
 
-const TRACKING_MODE_OPTIONS = ["NONE", "SERIALIZED"];
+const TRACKING_MODE_OPTIONS = [
+  { value: "NONE", label: "Không (Quản lý số lượng)" },
+  { value: "SERIALIZED", label: "Theo Serial/IMEI (Từng máy)" },
+];
+
 const IDENTIFIER_POLICY_OPTIONS = [
-  "NONE",
-  "IMEI",
-  "SERIAL",
-  "IMEI_OR_SERIAL",
-  "IMEI_AND_SERIAL",
+  { value: "NONE", label: "Không" },
+  { value: "IMEI", label: "IMEI" },
+  { value: "SERIAL", label: "Serial Number" },
+  { value: "IMEI_OR_SERIAL", label: "IMEI hoặc Serial" },
+  { value: "IMEI_AND_SERIAL", label: "Cả IMEI và Serial" },
 ];
 
 const UniversalProductForm = ({
@@ -658,7 +662,7 @@ const UniversalProductForm = ({
 
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 border rounded-lg p-4 bg-slate-50/70">
                   <div className="space-y-2">
-                    <Label>Tracking mode</Label>
+                    <Label>Chế độ theo dõi</Label>
                     <Select
                       value={formData.afterSalesConfig?.trackingMode || "NONE"}
                       onValueChange={(value) =>
@@ -676,8 +680,8 @@ const UniversalProductForm = ({
                       </SelectTrigger>
                       <SelectContent>
                         {TRACKING_MODE_OPTIONS.map((option) => (
-                          <SelectItem key={option} value={option}>
-                            {option}
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -685,7 +689,7 @@ const UniversalProductForm = ({
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Identifier policy</Label>
+                    <Label>Chính sách định danh</Label>
                     <Select
                       value={formData.afterSalesConfig?.identifierPolicy || "NONE"}
                       onValueChange={(value) =>
@@ -703,8 +707,8 @@ const UniversalProductForm = ({
                       </SelectTrigger>
                       <SelectContent>
                         {IDENTIFIER_POLICY_OPTIONS.map((option) => (
-                          <SelectItem key={option} value={option}>
-                            {option}
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
                           </SelectItem>
                         ))}
                       </SelectContent>

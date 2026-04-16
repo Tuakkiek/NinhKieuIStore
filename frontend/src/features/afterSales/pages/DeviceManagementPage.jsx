@@ -5,7 +5,6 @@ import {
   Loader2,
   Search,
   ShieldCheck,
-  Smartphone,
   Wrench,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -55,7 +54,7 @@ const isLikelyValidImei = (value) => {
 };
 
 const DeviceManagementPage = () => {
-  const [tab, setTab] = useState("devices");
+  const [tab, setTab] = useState("assign");
   const [devices, setDevices] = useState([]);
   const [warranties, setWarranties] = useState([]);
   const [history, setHistory] = useState([]);
@@ -73,7 +72,6 @@ const DeviceManagementPage = () => {
     variantSku: "",
     status: "ALL",
   });
-  const [serviceForm, setServiceForm] = useState({ serviceState: "NONE", notes: "" });
   const [warrantyForm, setWarrantyForm] = useState({ id: "", status: "ACTIVE", notes: "" });
   const [busy, setBusy] = useState(false);
 
@@ -158,10 +156,6 @@ const DeviceManagementPage = () => {
 
   useEffect(() => {
     loadHistory(selectedDevice?._id);
-    setServiceForm({
-      serviceState: selectedDevice?.serviceState || "NONE",
-      notes: "",
-    });
   }, [selectedDevice]);
 
   useEffect(() => {
@@ -288,20 +282,7 @@ const DeviceManagementPage = () => {
     }
   };
 
-  const handleServiceUpdate = async () => {
-    if (!selectedDevice?._id) return toast.error("Chọn một thiết bị trước");
-    setBusy(true);
-    try {
-      await afterSalesAPI.updateDeviceServiceState(selectedDevice._id, serviceForm);
-      toast.success("Đã cập nhật trạng thái thiết bị");
-      loadDevices();
-      loadHistory(selectedDevice._id);
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Không thể cập nhật trạng thái thiết bị");
-    } finally {
-      setBusy(false);
-    }
-  };
+
 
   const handleWarrantyUpdate = async () => {
     if (!warrantyForm.id) return toast.error("Thiết bị này chưa có hồ sơ bảo hành");
@@ -339,136 +320,12 @@ const DeviceManagementPage = () => {
       </div>
 
       <Tabs value={tab} onValueChange={setTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 lg:w-[500px]">
-          <TabsTrigger value="devices" className="gap-2"><Smartphone className="h-4 w-4" />Thiết bị</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
           <TabsTrigger value="assign" className="gap-2"><Wrench className="h-4 w-4" />Gán IMEI theo đơn</TabsTrigger>
           <TabsTrigger value="warranties" className="gap-2"><ShieldCheck className="h-4 w-4" />Bảo hành</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="devices" className="space-y-6">
-          <Card>
-            <CardHeader><CardTitle>Danh sách thiết bị</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-                <Input value={deviceFilters.identifier} onChange={(e) => setDeviceFilters((p) => ({ ...p, identifier: e.target.value }))} placeholder="IMEI / Serial" />
-                <Input value={deviceFilters.variantSku} onChange={(e) => setDeviceFilters((p) => ({ ...p, variantSku: e.target.value }))} placeholder="SKU" />
-                <Select value={deviceFilters.inventoryState} onValueChange={(value) => setDeviceFilters((p) => ({ ...p, inventoryState: value }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{INVENTORY_STATES.map((state) => <SelectItem key={state} value={state}>{state}</SelectItem>)}</SelectContent>
-                </Select>
-                <Select value={deviceFilters.serviceState} onValueChange={(value) => setDeviceFilters((p) => ({ ...p, serviceState: value }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{SERVICE_STATES.map((state) => <SelectItem key={state} value={state}>{state}</SelectItem>)}</SelectContent>
-                </Select>
-                <Button variant="outline" onClick={loadDevices}>Làm mới</Button>
-              </div>
 
-              <div className="rounded-xl border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Thiết bị</TableHead>
-                      <TableHead>SKU</TableHead>
-                      <TableHead>Tồn kho</TableHead>
-                      <TableHead>Hậu mãi</TableHead>
-                      <TableHead>Vị trí</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {loadingDevices ? (
-                      <TableRow><TableCell colSpan={5} className="py-10 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin text-slate-400" /></TableCell></TableRow>
-                    ) : devices.length === 0 ? (
-                      <TableRow><TableCell colSpan={5} className="py-10 text-center text-slate-500">Chưa có thiết bị phù hợp.</TableCell></TableRow>
-                    ) : devices.map((device) => (
-                      <TableRow key={device._id} className={`cursor-pointer ${selectedDevice?._id === device._id ? "bg-orange-50" : ""}`} onClick={() => setSelectedDevice(device)}>
-                        <TableCell><div><p className="font-medium">{device.productName}</p><p className="font-mono text-xs text-slate-500">{device.imei || device.serialNumber || "N/A"}</p></div></TableCell>
-                        <TableCell className="font-mono text-xs">{device.variantSku}</TableCell>
-                        <TableCell>{device.inventoryState}</TableCell>
-                        <TableCell>{device.serviceState}</TableCell>
-                        <TableCell>{device.warehouseLocationCode || "N/A"}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="grid gap-6 xl:grid-cols-[1fr_0.95fr]">
-            <Card>
-              <CardHeader><CardTitle className="flex items-center gap-2"><Wrench className="h-5 w-5 text-slate-500" />Chi tiết & cập nhật</CardTitle></CardHeader>
-              <CardContent className="space-y-4">
-                {!selectedDevice ? (
-                  <div className="rounded-xl border border-dashed py-16 text-center text-slate-500">Chọn một thiết bị để xem chi tiết.</div>
-                ) : (
-                  <>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <div className="rounded-xl border bg-slate-50 p-4"><p className="text-xs text-slate-500">IMEI</p><p className="mt-2 font-mono text-sm">{selectedDevice.imei || "N/A"}</p></div>
-                      <div className="rounded-xl border bg-slate-50 p-4"><p className="text-xs text-slate-500">Serial</p><p className="mt-2 font-mono text-sm">{selectedDevice.serialNumber || "N/A"}</p></div>
-                      <div className="rounded-xl border bg-slate-50 p-4"><p className="text-xs text-slate-500">Ngày nhập</p><p className="mt-2 text-sm">{formatDate(selectedDevice.receivedAt || selectedDevice.createdAt, true)}</p></div>
-                      <div className="rounded-xl border bg-slate-50 p-4"><p className="text-xs text-slate-500">Khách hàng</p><p className="mt-2 text-sm">{selectedDevice.saleSnapshot?.customerName || "Chưa bán"}</p></div>
-                    </div>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>Trạng thái hậu mãi</Label>
-                        <Select value={serviceForm.serviceState} onValueChange={(value) => setServiceForm((p) => ({ ...p, serviceState: value }))}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>{SERVICE_STATES.filter((state) => state !== "ALL").map((state) => <SelectItem key={state} value={state}>{state}</SelectItem>)}</SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Ghi chú thiết bị</Label>
-                        <Input value={serviceForm.notes} onChange={(e) => setServiceForm((p) => ({ ...p, notes: e.target.value }))} placeholder="Ví dụ: Đang chờ kiểm tra" />
-                      </div>
-                    </div>
-                    <Button onClick={handleServiceUpdate} disabled={busy}>Cập nhật trạng thái thiết bị</Button>
-
-                    <div className="rounded-xl border bg-orange-50 p-4">
-                      <p className="text-sm font-semibold">Hồ sơ bảo hành</p>
-                      {selectedWarranty ? (
-                        <div className="mt-3 grid gap-3 md:grid-cols-[220px_1fr_auto]">
-                          <Select value={warrantyForm.status} onValueChange={(value) => setWarrantyForm((p) => ({ ...p, status: value }))}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>{WARRANTY_STATUSES.filter((state) => state !== "ALL").map((state) => <SelectItem key={state} value={state}>{state}</SelectItem>)}</SelectContent>
-                          </Select>
-                          <Input value={warrantyForm.notes} onChange={(e) => setWarrantyForm((p) => ({ ...p, notes: e.target.value }))} placeholder={`Hết hạn: ${formatDate(selectedWarranty.expiresAt)}`} />
-                          <Button variant="outline" onClick={handleWarrantyUpdate} disabled={busy}>Lưu</Button>
-                        </div>
-                      ) : (
-                        <p className="mt-2 text-sm text-slate-500">Thiết bị này chưa có hồ sơ bảo hành.</p>
-                      )}
-                    </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader><CardTitle className="flex items-center gap-2"><History className="h-5 w-5 text-slate-500" />Lịch sử vòng đời</CardTitle></CardHeader>
-              <CardContent>
-                {loadingHistory ? (
-                  <div className="py-16 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin text-slate-400" /></div>
-                ) : history.length === 0 ? (
-                  <div className="rounded-xl border border-dashed py-16 text-center text-slate-500">Chưa có lịch sử cho thiết bị đang chọn.</div>
-                ) : (
-                  <div className="space-y-4">
-                    {history.map((entry) => (
-                      <div key={entry._id} className="flex gap-3 rounded-xl border p-4">
-                        <div className="mt-1 flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600"><Clock3 className="h-4 w-4" /></div>
-                        <div className="min-w-0">
-                          <p className="font-medium">{entry.eventType}</p>
-                          <p className="mt-1 text-sm text-slate-500">{entry.actorName || "System"} • {formatDate(entry.createdAt, true)}</p>
-                          <p className="mt-2 text-sm text-slate-700">{entry.fromInventoryState || "N/A"} → {entry.toInventoryState || "N/A"}</p>
-                          {entry.note ? <p className="mt-2 text-sm text-slate-600">{entry.note}</p> : null}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
 
         <TabsContent value="assign" className="space-y-6">
           <Card>
@@ -511,7 +368,7 @@ const DeviceManagementPage = () => {
                     ) : eligibleOrders.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={4} className="py-10 text-center text-slate-500">
-                          Chưa có đơn phù hợp (IN_STORE: đã thanh toán & hoàn tất, ONLINE: sẵn sàng giao).
+                          Chưa có đơn phù hợp (Hệ thống chấp nhận hầu hết các đơn đang hoạt động, trừ đơn Đã hủy hoặc Đã trả hàng).
                         </TableCell>
                       </TableRow>
                     ) : (

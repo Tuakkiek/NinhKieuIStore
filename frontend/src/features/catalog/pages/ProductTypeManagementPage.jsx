@@ -462,7 +462,7 @@ const ProductTypeManagementPage = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 border rounded-xl p-4 bg-slate-50/70">
               <div className="space-y-1.5">
-                <Label className="text-sm">Tracking mode</Label>
+                <Label className="text-sm">Chế độ theo dõi</Label>
                 <Select
                   value={formData.afterSalesDefaults?.trackingMode || "NONE"}
                   onValueChange={(value) =>
@@ -489,7 +489,7 @@ const ProductTypeManagementPage = () => {
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-sm">Identifier policy</Label>
+                <Label className="text-sm"></Label>
                 <Select
                   value={formData.afterSalesDefaults?.identifierPolicy || "NONE"}
                   onValueChange={(value) =>

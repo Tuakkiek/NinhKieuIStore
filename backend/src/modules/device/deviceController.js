@@ -35,18 +35,9 @@ const getCustomerSnapshotFromOrder = (order = {}) => ({
 });
 
 const isEligibleOrderForAssignment = (order = {}) => {
-  const status = String(order?.status || "").toUpperCase();
-  const orderSource = String(order?.orderSource || "").toUpperCase();
-  const paymentStatus = String(order?.paymentStatus || "").toUpperCase();
-
-  const isInStore = orderSource === "IN_STORE" || String(order?.fulfillmentType || "").toUpperCase() === "IN_STORE";
-  if (isInStore) {
-    // Requirement: completed orders (in-store) AND customer has paid
-    return paymentStatus === "PAID" && ["DELIVERED", "PICKED_UP", "COMPLETED"].includes(status);
-  }
-
-  // Requirement: ready-to-ship (online)
-  return orderSource === "ONLINE" && status === "PREPARING_SHIPMENT";
+  // User requested "no constraints", ra đơn nào gán đơn đó luôn.
+  // We only block if the order object is completely missing.
+  return Boolean(order?._id);
 };
 
 const buildOrderListItem = (order = {}) => {
@@ -325,45 +316,34 @@ export const listEligibleOrdersForImeiAssignment = async (req, res) => {
     const phone = normalizePhone(req.query.phone || req.query.q || "");
     const orderIdOrNumber = String(req.query.orderId || req.query.orderNumber || req.query.q || "").trim();
 
-    const baseOr = [
-      // In-store completed (and paid)
-      {
-        orderSource: "IN_STORE",
-        paymentStatus: "PAID",
-        status: { $in: ["DELIVERED", "PICKED_UP", "COMPLETED"] },
-      },
-      // Online ready-to-ship
-      {
-        orderSource: "ONLINE",
-        status: "PREPARING_SHIPMENT",
-      },
-    ];
+    const query = {};
 
-    const query = {
-      "assignedStore.storeId": activeStoreId,
-      $or: baseOr,
-    };
-
-    if (phone) {
-      query.$and = [
-        {
-          $or: [
-            { "shippingAddress.phoneNumber": { $regex: phone } },
-            { customerPhone: { $regex: phone } },
-          ],
-        },
-      ];
+    // Only apply branch filter if it's a general list (no search query)
+    const hasSearch = phone || orderIdOrNumber;
+    if (activeStoreId && !hasSearch) {
+      query["assignedStore.storeId"] = activeStoreId;
     }
 
-    if (orderIdOrNumber) {
-      const and = query.$and || [];
-      and.push({
-        $or: [
-          ...(mongoose.isValidObjectId(orderIdOrNumber) ? [{ _id: orderIdOrNumber }] : []),
-          { orderNumber: { $regex: orderIdOrNumber, $options: "i" } },
-        ],
-      });
-      query.$and = and;
+    if (phone || orderIdOrNumber) {
+      const searchOr = [];
+      
+      // Phone search (only if it looks like a possible phone number)
+      if (phone && phone.length >= 8 && phone.length <= 15) {
+        searchOr.push({ "shippingAddress.phoneNumber": { $regex: phone } });
+        searchOr.push({ customerPhone: { $regex: phone } });
+      }
+
+      // Order ID or Number search
+      if (orderIdOrNumber) {
+        if (mongoose.isValidObjectId(orderIdOrNumber)) {
+          searchOr.push({ _id: orderIdOrNumber });
+        }
+        searchOr.push({ orderNumber: { $regex: orderIdOrNumber, $options: "i" } });
+      }
+
+      if (searchOr.length > 0) {
+        query.$or = searchOr;
+      }
     }
 
     const [orders, total] = await Promise.all([
