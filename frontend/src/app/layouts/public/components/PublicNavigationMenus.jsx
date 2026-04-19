@@ -52,7 +52,7 @@ const PublicNavigationMenus = ({
                 d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
               />
             </svg>
-            <span className="text-[10px] font-medium">Trang ch\u1ee7</span>
+            <span className="text-[10px] font-medium">Trang chủ</span>
           </Link>
 
           <button
@@ -60,7 +60,7 @@ const PublicNavigationMenus = ({
             className="flex flex-col items-center justify-center gap-1 text-gray-600 hover:text-red-500 transition-colors"
           >
             <Menu className="w-5 h-5" />
-            <span className="text-[10px] font-medium">Danh m\u1ee5c</span>
+            <span className="text-[10px] font-medium">Danh mục</span>
           </button>
 
           {isAuthenticated && canAccessCustomerSelfService && (
@@ -69,7 +69,7 @@ const PublicNavigationMenus = ({
               className="flex flex-col items-center justify-center gap-1 text-gray-600 hover:text-red-500 transition-colors"
             >
               <MapPin className="w-5 h-5" />
-              <span className="text-[10px] font-medium">C\u1eeda h\u00e0ng</span>
+              <span className="text-[10px] font-medium">Cửa hàng</span>
             </button>
           )}
 
@@ -78,7 +78,7 @@ const PublicNavigationMenus = ({
             className="flex flex-col items-center justify-center gap-1 text-gray-600 hover:text-red-500 transition-colors"
           >
             <Phone className="w-5 h-5" />
-            <span className="text-[10px] font-medium">Li\u00ean h\u1ec7</span>
+            <span className="text-[10px] font-medium">Liên hệ</span>
           </button>
 
           {isAuthenticated ? (
@@ -87,7 +87,7 @@ const PublicNavigationMenus = ({
               className="flex flex-col items-center justify-center gap-1 text-gray-600 hover:text-red-500 transition-colors"
             >
               <User className="w-5 h-5" />
-              <span className="text-[10px] font-medium">T\u00e0i kho\u1ea3n</span>
+              <span className="text-[10px] font-medium">Tài khoản</span>
             </button>
           ) : (
             <button
@@ -95,7 +95,7 @@ const PublicNavigationMenus = ({
               className="flex flex-col items-center justify-center gap-1 text-gray-600 hover:text-red-500 transition-colors"
             >
               <User className="w-5 h-5" />
-              <span className="text-[10px] font-medium">\u0110\u0103ng nh\u1eadp</span>
+              <span className="text-[10px] font-medium">Đăng nhập</span>
             </button>
           )}
         </div>
@@ -125,7 +125,7 @@ const PublicNavigationMenus = ({
             <div className="bg-white text-gray-900 p-4 flex items-center justify-between border-b border-gray-200 flex-shrink-0">
               <div className="flex items-center gap-3">
                 <MapPin className="w-6 h-6 text-red-500" />
-                <span className="text-lg font-semibold">C\u1eeda h\u00e0ng</span>
+                <span className="text-lg font-semibold">Cửa hàng</span>
               </div>
               <button
                 onClick={() => setStoreMenuOpen(false)}
@@ -171,12 +171,12 @@ const PublicNavigationMenus = ({
                                 {store.name}
                                 {store.isMain && (
                                   <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full">
-                                    Ch\u00ednh
+                                    Chính
                                   </span>
                                 )}
                               </h3>
                               <p className="text-gray-600 text-xs">
-                                Qu\u1eadn {store.district}
+                                Quận {store.district}
                               </p>
                             </div>
                           </div>
@@ -212,13 +212,13 @@ const PublicNavigationMenus = ({
                               rel="noopener noreferrer"
                               className="flex-1 bg-black text-white rounded-full py-2 px-4 text-xs font-semibold hover:bg-gray-800 transition-colors text-center"
                             >
-                              Ch\u1ec9 \u0111\u01b0\u1eddng
+                              Chỉ đường
                             </a>
                             <a
                               href={`tel:${store.phone}`}
                               className="flex-1 bg-white text-black rounded-full py-2 px-4 text-xs font-semibold hover:bg-gray-100 transition-colors text-center border border-gray-300"
                             >
-                              G\u1ecdi ngay
+                              Gọi ngay
                             </a>
                           </div>
                         </div>
@@ -227,7 +227,7 @@ const PublicNavigationMenus = ({
                   ) : (
                     <div className="flex flex-col items-center justify-center h-64 text-gray-500">
                       <MapPin className="w-16 h-16 mb-4" />
-                      <p className="text-sm">Kh\u00f4ng c\u00f3 c\u1eeda h\u00e0ng</p>
+                      <p className="text-sm">Không có cửa hàng</p>
                     </div>
                   )}
                 </div>
@@ -250,8 +250,8 @@ const PublicNavigationMenus = ({
               <div className="flex items-center gap-3">
                 <Phone className="w-6 h-6 text-red-500" />
                 <div>
-                  <span className="text-lg font-semibold">T\u1ed5ng \u0111\u00e0i h\u1ed7 tr\u1ee3</span>
-                  <p className="text-xs text-gray-600">(T\u1eeb 8:00-21:00)</p>
+                  <span className="text-lg font-semibold">Tổng đài hỗ trợ</span>
+                  <p className="text-xs text-gray-600">(Từ 8:00-21:00)</p>
                 </div>
               </div>
               <button
@@ -268,12 +268,12 @@ const PublicNavigationMenus = ({
                   className="bg-gray-50 rounded-xl p-4 border border-gray-200 hover:border-gray-300 transition-colors block"
                 >
                   <p className="text-gray-600 text-xs mb-2">
-                    Hotline b\u00e1n h\u00e0ng:
+                    Hotline bán hàng:
                   </p>
                   <div className="flex items-center gap-2">
                     <Phone className="w-5 h-5 text-red-500" />
                     <span className="text-red-500 font-bold text-base">
-                      1900.633.909 (B\u1ea5m ph\u00edm 1)
+                      1900.633.909 (Bấm phím 1)
                     </span>
                   </div>
                 </a>
@@ -282,7 +282,7 @@ const PublicNavigationMenus = ({
                   className="bg-gray-50 rounded-xl p-4 border border-gray-200 hover:border-gray-300 transition-colors block"
                 >
                   <p className="text-gray-600 text-xs mb-2">
-                    Kh\u00e1ch h\u00e0ng doanh nghi\u1ec7p:
+                    Khách hàng doanh nghiệp:
                   </p>
                   <div className="flex items-center gap-2">
                     <Phone className="w-5 h-5 text-red-500" />
@@ -296,12 +296,12 @@ const PublicNavigationMenus = ({
                   className="bg-gray-50 rounded-xl p-4 border border-gray-200 hover:border-gray-300 transition-colors block"
                 >
                   <p className="text-gray-600 text-xs mb-2">
-                    Hotline b\u1ea3o h\u00e0nh, k\u1ef9 thu\u1eadt:
+                    Hotline bảo hành, kỹ thuật:
                   </p>
                   <div className="flex items-center gap-2">
                     <Phone className="w-5 h-5 text-red-500" />
                     <span className="text-red-500 font-bold text-base">
-                      1900.633.909 (B\u1ea5m ph\u00edm 2)
+                      1900.633.909 (Bấm phím 2)
                     </span>
                   </div>
                 </a>
@@ -310,12 +310,12 @@ const PublicNavigationMenus = ({
                   className="bg-gray-50 rounded-xl p-4 border border-gray-200 hover:border-gray-300 transition-colors block"
                 >
                   <p className="text-gray-600 text-xs mb-2">
-                    Hotline h\u1ed7 tr\u1ee3 ph\u1ea7n m\u1ec1m:
+                    Hotline hỗ trợ phần mềm:
                   </p>
                   <div className="flex items-center gap-2">
                     <Phone className="w-5 h-5 text-red-500" />
                     <span className="text-red-500 font-bold text-base">
-                      1900.633.909 (B\u1ea5m ph\u00edm 3)
+                      1900.633.909 (Bấm phím 3)
                     </span>
                   </div>
                 </a>
@@ -324,7 +324,7 @@ const PublicNavigationMenus = ({
                   className="bg-gray-50 rounded-xl p-4 border border-gray-200 hover:border-gray-300 transition-colors block"
                 >
                   <p className="text-gray-600 text-xs mb-2">
-                    Hotline t\u01b0 v\u1ea5n tr\u1ea3 g\u00f3p:
+                    Hotline tư vấn trả góp:
                   </p>
                   <div className="flex items-center gap-2">
                     <Phone className="w-5 h-5 text-red-500" />
@@ -338,7 +338,7 @@ const PublicNavigationMenus = ({
                   className="bg-gray-50 rounded-xl p-4 border border-gray-200 hover:border-gray-300 transition-colors block"
                 >
                   <p className="text-gray-600 text-xs mb-2">
-                    Hotline ph\u1ea3n \u00e1nh ch\u1ea5t l\u01b0\u1ee3ng d\u1ecbch v\u1ee5:
+                    Hotline phản ánh chất lượng dịch vụ:
                   </p>
                   <div className="flex items-center gap-2">
                     <Phone className="w-5 h-5 text-red-500" />
@@ -368,7 +368,7 @@ const PublicNavigationMenus = ({
               <div className="flex items-center gap-4">
                 <MapPin className="w-7 h-7" />
                 <span className="text-2xl font-semibold">
-                  H\u1ec7 Th\u1ed1ng C\u1eeda H\u00e0ng
+                  Hệ Thống Cửa Hàng
                 </span>
               </div>
               <button
@@ -435,12 +435,12 @@ const PublicNavigationMenus = ({
                                 {store.name}
                                 {store.isMain && (
                                   <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-                                    Ch\u00ednh
+                                    Chính
                                   </span>
                                 )}
                               </h3>
                               <p className="text-gray-400 text-sm">
-                                Qu\u1eadn {store.district}
+                                Quận {store.district}
                               </p>
                             </div>
                           </div>
@@ -484,14 +484,14 @@ const PublicNavigationMenus = ({
                               rel="noopener noreferrer"
                               className="flex-1 bg-white text-black rounded-full py-2.5 px-4 text-sm font-semibold hover:bg-gray-200 transition-colors text-center"
                             >
-                              Ch\u1ec9 \u0111\u01b0\u1eddng
+                              Chỉ đường
                             </a>
 
                             <a
                               href={`tel:${store.phone}`}
                               className="flex-1 bg-neutral-800 text-white rounded-full py-2.5 px-4 text-sm font-semibold hover:bg-neutral-700 transition-colors text-center border border-gray-700"
                             >
-                              G\u1ecdi ngay
+                              Gọi ngay
                             </a>
                           </div>
                         </div>
@@ -501,7 +501,7 @@ const PublicNavigationMenus = ({
                     <div className="flex flex-col items-center justify-center h-96 text-gray-500">
                       <MapPin className="w-20 h-20 mb-4" />
                       <p className="text-base">
-                        Kh\u00f4ng c\u00f3 c\u1eeda h\u00e0ng trong khu v\u1ef1c n\u00e0y
+                        Không có cửa hàng trong khu vực này
                       </p>
                     </div>
                   )}
