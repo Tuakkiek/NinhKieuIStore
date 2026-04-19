@@ -24,6 +24,11 @@ import {
   isSerializedProduct,
   resolveAfterSalesConfig,
 } from "@/features/afterSales/utils/afterSales";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+} from "@/shared/ui/carousel";
 
 // ✅ Map ProductType slug to category path for URL generation
 const PRODUCT_TYPE_TO_CATEGORY = {
@@ -92,6 +97,34 @@ const ProductDetailPage = () => {
   const [showWarrantyPanel, 
     setShowWarrantyPanel] = useState(false);
   const productSource = "universal";
+
+  const [carouselApi, setCarouselApi] = useState(null);
+
+  // Sync main state -> carousel
+  useEffect(() => {
+    if (!carouselApi) return;
+    carouselApi.scrollTo(selectedImage);
+  }, [carouselApi, selectedImage]);
+
+  // Sync carousel (swipe) -> main state
+  useEffect(() => {
+    if (!carouselApi) return;
+
+    const onSelect = () => {
+      const index = carouselApi.selectedScrollSnap();
+      if (index !== selectedImage) {
+        setSelectedImage(index);
+      }
+    };
+
+    carouselApi.on("select", onSelect);
+    carouselApi.on("reInit", onSelect);
+
+    return () => {
+      carouselApi.off("select", onSelect);
+      carouselApi.off("reInit", onSelect);
+    };
+  }, [carouselApi, selectedImage]);
 
   const {
     addToCart,
@@ -421,7 +454,9 @@ const ProductDetailPage = () => {
           <div className="lg:col-span-7">
             <div className="bg-white rounded-lg overflow-hidden lg:sticky lg:top-4">
               {/* Main Image */}
-              <div className="relative aspect-square sm:aspect-video bg-white">
+              <div
+                className="relative aspect-square sm:aspect-video bg-white"
+              >
                 {" "}
                 {/* 16:9 Aspect Ratio */}
                 {activeMediaTab === "video" && product.videoUrl ? (
@@ -444,64 +479,79 @@ const ProductDetailPage = () => {
                     )}
                   </div>
                 ) : (
-                  // Hiển thị ảnh (featured hoặc variant)
-                  <>
-                    {(() => {
-                      const currentImages = getCurrentMainImages();
-                      return currentImages.length > 0 ? (
-                        <img
-                          src={
-                            currentImages[selectedImage] || "/placeholder.png"
-                          }
-                          alt={product.name}
-                          className="w-full h-full object-contain p-8"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-gray-400">
-                          Không có ảnh
-                        </div>
-                      );
-                    })()}
+                  // Hiển thị Carousel ảnh (featured hoặc variant)
+                  <Carousel
+                    setApi={setCarouselApi}
+                    className="w-full h-full"
+                    opts={{
+                      align: "start",
+                      loop: true,
+                    }}
+                  >
+                    <CarouselContent className="h-full ml-0">
+                      {(() => {
+                        const currentImages = getCurrentMainImages();
+                        return currentImages.length > 0 ? (
+                          currentImages.map((img, idx) => (
+                            <CarouselItem key={idx} className="h-full pl-0 flex items-center justify-center">
+                              <img
+                                src={img || "/placeholder.png"}
+                                alt={`${product.name} - ${idx + 1}`}
+                                className="w-full h-full object-contain p-4 sm:p-8"
+                              />
+                            </CarouselItem>
+                          ))
+                        ) : (
+                          <CarouselItem className="h-full pl-0 flex items-center justify-center">
+                            <div className="text-gray-400">Không có ảnh</div>
+                          </CarouselItem>
+                        );
+                      })()}
+                    </CarouselContent>
 
-                    {/* Navigation Arrows */}
+                    {/* Navigation Arrows & Pagination Indicators */}
                     {(() => {
                       const currentImages = getCurrentMainImages();
+                      if (currentImages.length <= 1 || activeMediaTab === "video") return null;
+
                       return (
-                        currentImages.length > 1 &&
-                        activeMediaTab !== "video" && (
-                          <>
-                            <button
-                              onClick={() => {
-                                const images = getCurrentMainImages();
-                                setSelectedImage((prev) =>
-                                  prev > 0 ? prev - 1 : images.length - 1
-                                );
-                              }}
-                              className="absolute left-1 sm:left-2 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10 bg-white/90 hover:bg-white rounded-full shadow-lg flex items-center justify-center transition-all"
-                            >
-                              <ChevronLeft className="w-6 h-6 text-gray-700" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                const images = getCurrentMainImages();
-                                setSelectedImage((prev) =>
-                                  prev < images.length - 1 ? prev + 1 : 0
-                                );
-                              }}
-                              className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 hover:bg-white rounded-full shadow-lg flex items-center justify-center transition-all"
-                            >
-                              <ChevronRight className="w-6 h-6 text-gray-700" />
-                            </button>
+                        <>
+                          {/* Desktop Arrows */}
+                          <button
+                            onClick={() => carouselApi?.scrollPrev()}
+                            className="hidden sm:flex absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 hover:bg-white rounded-full shadow-lg items-center justify-center transition-all z-10"
+                          >
+                            <ChevronLeft className="w-6 h-6 text-gray-700" />
+                          </button>
+                          <button
+                            onClick={() => carouselApi?.scrollNext()}
+                            className="hidden sm:flex absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 hover:bg-white rounded-full shadow-lg items-center justify-center transition-all z-10"
+                          >
+                            <ChevronRight className="w-6 h-6 text-gray-700" />
+                          </button>
 
-                            {/* Image Counter */}
-                            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white px-3 py-1 rounded-full text-sm">
-                              {selectedImage + 1}/{currentImages.length}
-                            </div>
-                          </>
-                        )
+                          {/* Desktop Image Counter */}
+                          <div className="hidden sm:block absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white px-3 py-1 rounded-full text-sm z-10">
+                            {selectedImage + 1}/{currentImages.length}
+                          </div>
+
+                          {/* Mobile Swipe Indicators (Dots) */}
+                          <div className="sm:hidden flex justify-center gap-1.5 absolute bottom-4 w-full z-10">
+                            {currentImages.map((_, idx) => (
+                              <button
+                                key={idx}
+                                onClick={() => carouselApi?.scrollTo(idx)}
+                                className={`h-1.5 rounded-full transition-all ${
+                                  idx === selectedImage ? "bg-red-500 w-4" : "bg-gray-300 w-1.5"
+                                }`}
+                                aria-label={`Go to slide ${idx + 1}`}
+                              />
+                            ))}
+                          </div>
+                        </>
                       );
                     })()}
-                  </>
+                  </Carousel>
                 )}
               </div>
 
@@ -879,22 +929,23 @@ const ProductDetailPage = () => {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-4">
+              <div className="flex flex-row gap-2 sm:gap-3 mb-4">
                 {/* NÚT THÊM VÀO GIỎ */}
                 <button
                   onClick={() => handleAddToCart(false)} // ← false = không phải mua ngay
                   disabled={cartLoading || selectedVariant.stock === 0}
-                  className="flex-1 bg-white hover:bg-gray-50 text-red-600 font-bold py-4 px-6 rounded-lg text-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 border-2 border-red-600 shadow-lg hover:shadow-xl"
+                  className="flex-shrink-0 w-14 sm:w-auto sm:flex-1 bg-white hover:bg-gray-50 text-red-600 font-bold py-3 sm:py-4 px-0 sm:px-6 rounded-lg text-base sm:text-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-0 sm:gap-2 border-2 border-red-600 shadow-lg hover:shadow-xl"
+                  title="Thêm vào giỏ"
                 >
-                  <ShoppingCart className="w-5 h-5" />
-                  {cartLoading ? "Đang thêm..." : "Thêm vào giỏ"}
+                  <ShoppingCart className="w-6 h-6 sm:w-5 sm:h-5" />
+                  <span className="hidden sm:inline">{cartLoading ? "Đang thêm..." : "Thêm vào giỏ"}</span>
                 </button>
 
                 {/* NÚT MUA NGAY */}
                 <button
                   onClick={() => handleAddToCart(true)} // ← true = mua ngay
                   disabled={cartLoading || selectedVariant.stock === 0}
-                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-6 rounded-lg text-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 sm:py-4 px-4 sm:px-6 rounded-lg text-base sm:text-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
                 >
                   {selectedVariant.stock === 0 ? "Hết hàng" : "Mua ngay"}
                 </button>

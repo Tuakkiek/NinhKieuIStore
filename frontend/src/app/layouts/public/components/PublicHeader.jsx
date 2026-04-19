@@ -23,7 +23,7 @@ const PublicHeader = ({
               <img
                 src="/logo.jpg"
                 alt="Ninh Kiều iSTORE"
-                className="h-16 w-auto rounded-[30px] object-cover"
+                className="h-10 sm:h-12 w-auto rounded-full object-cover"
               />
             </Link>
 
