@@ -4,6 +4,7 @@
   "description": "",
   "main": "server.js",
   "scripts": {
+    "build": "echo 'No build step required'",
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "test": "node --test --test-concurrency=1 src/tests/**/*.test.js",
