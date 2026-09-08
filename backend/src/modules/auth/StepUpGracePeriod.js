@@ -30,7 +30,6 @@ const stepUpGracePeriodSchema = new mongoose.Schema(
     expiresAt: {
       type: Date,
       required: true,
-      index: true,
     },
     // IP tại thời điểm step-up để audit
     ipAddress: {

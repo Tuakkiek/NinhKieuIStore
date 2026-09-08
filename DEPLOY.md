@@ -50,7 +50,7 @@ git push -u origin main
 | **Branch** | `main` |
 | **Root Directory** | `backend` |
 | **Runtime** | `Node` |
-| **Build Command** | `npm install` |
+| **Build Command** | `npm run build` |
 | **Start Command** | `node src/server.js` |
 | **Instance Type** | `Free` |
 
