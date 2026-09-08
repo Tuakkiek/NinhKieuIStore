@@ -451,13 +451,10 @@ const ProductDetailPage = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
           {/* LEFT: Image Gallery - 7 cols */}
-          <div className="lg:col-span-7">
+          <div className="lg:col-span-7 order-1">
             <div className="bg-white rounded-lg overflow-hidden lg:sticky lg:top-4">
               {/* Main Image */}
-              <div
-                className="relative aspect-square sm:aspect-video bg-white"
-              >
-                {" "}
+              <div className="relative aspect-square sm:aspect-video bg-white">
                 {/* 16:9 Aspect Ratio */}
                 {activeMediaTab === "video" && product.videoUrl ? (
                   // Hiển thị video
@@ -724,11 +721,11 @@ const ProductDetailPage = () => {
           </div>
 
           {/* RIGHT: Product Info - 5 cols */}
-          <div className="lg:col-span-5">
-            <div className="bg-white rounded-lg p-4 sm:p-6">
+          <div className="lg:col-span-5 order-2">
+            <div className="bg-white rounded-lg p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-visible">
               {/* Product Title & Meta */}
-              <div className="mb-4">
-                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
+              <div>
+                <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 mb-2 leading-tight">
                   {product.name}
                 </h1>
                 <div className="flex items-center gap-4 text-sm">
@@ -745,8 +742,8 @@ const ProductDetailPage = () => {
               </div>
 
               {/* Variant Name Selection */}
-              <div className="mb-4">
-                <h3 className="text-sm font-semibold mb-3">Biến thể</h3>
+              <div>
+                <h3 className="text-sm font-semibold mb-2 sm:mb-3">Biến thể</h3>
                 <div className="flex flex-wrap gap-2">
                   {variantKeyOptions.map((option) => {
                     // ✅ UPDATED: Find variant differently for universal vs legacy
@@ -798,9 +795,9 @@ const ProductDetailPage = () => {
               </div>
 
               {/* Color Selection */}
-              <div className="mb-6">
-                <h3 className="text-sm font-semibold mb-3">Màu sắc</h3>
-                <div className="grid grid-cols-2 gap-3">
+              <div>
+                <h3 className="text-sm font-semibold mb-2 sm:mb-3">Màu sắc</h3>
+                <div className="grid grid-cols-2 gap-2 sm:gap-3">
                   {Object.keys(groupedVariants).map((color) => {
                     const isSelected = selectedVariant.color === color;
                     const hasStock = groupedVariants[color].some(
@@ -878,17 +875,17 @@ const ProductDetailPage = () => {
               </div>
 
               {/* Price Section */}
-              <div className="bg-gradient-to-br from-red-50 to-orange-50 rounded-xl p-5 mb-6 border border-red-100">
-                <div className="flex items-baseline gap-3 mb-3">
-                  <span className="text-2xl sm:text-3xl font-bold text-red-600">
+              <div className="bg-gradient-to-br from-red-50 to-orange-50 rounded-xl p-3 sm:p-5 border border-red-100">
+                <div className="flex items-baseline gap-2 sm:gap-3 mb-2 sm:mb-3">
+                  <span className="text-xl sm:text-2xl lg:text-3xl font-bold text-red-600">
                     {formatPrice(selectedVariant.price)}
                   </span>
                   {selectedVariant.originalPrice > selectedVariant.price && (
                     <>
-                      <span className="text-lg text-gray-500 line-through">
+                      <span className="text-sm sm:text-lg text-gray-500 line-through">
                         {formatPrice(selectedVariant.originalPrice)}
                       </span>
-                      <span className="bg-red-600 text-white px-2 py-1 rounded text-sm font-semibold">
+                      <span className="bg-red-600 text-white px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-xs sm:text-sm font-semibold">
                         -{discount}%
                       </span>
                     </>
@@ -897,55 +894,52 @@ const ProductDetailPage = () => {
               </div>
 
               {/* Promotion Box */}
-              <div className="bg-pink-50 rounded-xl p-4 mb-6 border border-pink-200">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="bg-red-600 text-white px-3 py-1 rounded-full text-sm font-semibold">
-                    🔥 Khuyến mãi đặc biệt
+              <div className="bg-pink-50 rounded-xl p-3 sm:p-4 border border-pink-200">
+                <div className="flex items-center gap-2 mb-2 sm:mb-3">
+                  <div className="bg-red-600 text-white px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm font-semibold">
+                    🔥 Khuyến mãi
                   </div>
                 </div>
-                <ul className="space-y-2 text-sm">
+                <ul className="space-y-1 sm:space-y-2 text-xs sm:text-sm">
                   <li className="flex items-start gap-2">
-                    <span className="text-red-600 mt-1">•</span>
+                    <span className="text-red-600 mt-0.5">•</span>
                     <span>Giảm ngay 2.800.000đ áp dụng đến 06/11</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-red-600 mt-1">•</span>
+                    <span className="text-red-600 mt-0.5">•</span>
                     <span>AirPods giảm đến 500.000đ khi mua kèm iPhone</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-red-600 mt-1">•</span>
+                    <span className="text-red-600 mt-0.5">•</span>
                     <span>
                       Giảm thêm đến 250k khi mua kèm SIM
-                      {/* <button className="text-blue-600 hover:underline">
-                        Xem chi tiết
-                      </button> */}
                     </span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-red-600 mt-1">•</span>
+                    <span className="text-red-600 mt-0.5">•</span>
                     <span>Trả góp 0%</span>
                   </li>
                 </ul>
               </div>
 
               {/* Action Buttons */}
-              <div className="flex flex-row gap-2 sm:gap-3 mb-4">
+              <div className="flex flex-row gap-2 sm:gap-3">
                 {/* NÚT THÊM VÀO GIỎ */}
                 <button
-                  onClick={() => handleAddToCart(false)} // ← false = không phải mua ngay
+                  onClick={() => handleAddToCart(false)}
                   disabled={cartLoading || selectedVariant.stock === 0}
-                  className="flex-shrink-0 w-14 sm:w-auto sm:flex-1 bg-white hover:bg-gray-50 text-red-600 font-bold py-3 sm:py-4 px-0 sm:px-6 rounded-lg text-base sm:text-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-0 sm:gap-2 border-2 border-red-600 shadow-lg hover:shadow-xl"
+                  className="flex-shrink-0 w-14 sm:w-auto sm:flex-1 bg-white hover:bg-gray-50 text-red-600 font-bold py-3 sm:py-4 px-2 sm:px-6 rounded-lg text-sm sm:text-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1 sm:gap-2 border-2 border-red-600 shadow-lg hover:shadow-xl"
                   title="Thêm vào giỏ"
                 >
-                  <ShoppingCart className="w-6 h-6 sm:w-5 sm:h-5" />
+                  <ShoppingCart className="w-5 h-5 sm:w-5 sm:h-5" />
                   <span className="hidden sm:inline">{cartLoading ? "Đang thêm..." : "Thêm vào giỏ"}</span>
                 </button>
 
                 {/* NÚT MUA NGAY */}
                 <button
-                  onClick={() => handleAddToCart(true)} // ← true = mua ngay
+                  onClick={() => handleAddToCart(true)}
                   disabled={cartLoading || selectedVariant.stock === 0}
-                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 sm:py-4 px-4 sm:px-6 rounded-lg text-base sm:text-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 sm:py-4 px-2 sm:px-6 rounded-lg text-sm sm:text-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1 sm:gap-2 shadow-lg hover:shadow-xl"
                 >
                   {selectedVariant.stock === 0 ? "Hết hàng" : "Mua ngay"}
                 </button>
@@ -953,56 +947,56 @@ const ProductDetailPage = () => {
 
               {/* Stock Warning */}
               {selectedVariant.stock > 0 && selectedVariant.stock <= 5 && (
-                <div className="bg-orange-50 border-l-4 border-orange-500 p-3 rounded mb-4">
-                  <p className="text-sm text-orange-700 font-medium">
+                <div className="bg-orange-50 border-l-4 border-orange-500 p-2 sm:p-3 rounded">
+                  <p className="text-xs sm:text-sm text-orange-700 font-medium">
                     ⚠️ Chỉ còn {selectedVariant.stock} sản phẩm!
                   </p>
                 </div>
               )}
 
               {/* ===== THÊM SPECS & WARRANTY CHO MOBILE ===== */}
-              <div className="lg:hidden space-y-4 mt-6">
+              <div className="lg:hidden space-y-3 sm:space-y-4 mt-4 sm:mt-6">
                 {/* Quick Specs Mobile */}
-                <div className="p-4 bg-gray-50 rounded-lg border">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-bold text-gray-900">
+                <div className="p-3 sm:p-4 bg-gray-50 rounded-lg border">
+                  <div className="flex items-center justify-between mb-2 sm:mb-3">
+                    <h3 className="font-bold text-gray-900 text-sm sm:text-base">
                       Thông số nổi bật
                     </h3>
                     <button
                       onClick={() => setShowSpecsPanel(true)}
-                      className="text-sm text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1"
+                      className="text-xs sm:text-sm text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1"
                     >
                       Xem tất cả
-                      <ChevronRight className="w-4 h-4" />
+                      <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4" />
                     </button>
                   </div>
                   <QuickSpecs specifications={product.specifications} />
                 </div>
 
                 {/* Warranty Mobile */}
-                <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
-                  <div className="flex items-center justify-between mb-2">
+                <div className="p-3 sm:p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center justify-between mb-1.5 sm:mb-2">
                     <div className="flex items-center gap-2">
-                      <Shield className="w-5 h-5 text-blue-600" />
-                      <span className="font-bold text-gray-900">
+                      <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+                      <span className="font-bold text-gray-900 text-sm sm:text-base">
                         Chính sách bảo hành
                       </span>
                     </div>
                     <button
                       onClick={() => setShowWarrantyPanel(true)}
-                      className="text-sm text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1"
+                      className="text-xs sm:text-sm text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1"
                     >
                       Chi tiết
-                      <ChevronRight className="w-4 h-4" />
+                      <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4" />
                     </button>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
                     <div className="flex items-center gap-2">
-                      <Check className="w-4 h-4 text-green-600" />
+                      <Check className="w-3 h-3 sm:w-4 sm:h-4 text-green-600" />
                       <span className="text-gray-700">{warrantyDurationLabel}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Check className="w-4 h-4 text-green-600" />
+                      <Check className="w-3 h-3 sm:w-4 sm:h-4 text-green-600" />
                       <span className="text-gray-700">
                         {serializedTrackingEnabled ? "Theo dõi từng thiết bị" : "Bảo hành theo sản phẩm"}
                       </span>
@@ -1016,16 +1010,16 @@ const ProductDetailPage = () => {
       </div>
 
       {/* Similar Products Section */}
-      <div className="mt-4 sm:mt-8">
+      <div className="mt-4 sm:mt-8 px-2 sm:px-4">
         <SimilarProducts
           productId={product._id}
           category={product.category}
-          currentProduct={product} // ← THÊM prop này để tính điểm tốt hơn
+          currentProduct={product}
         />
       </div>
 
       {/* Reviews Section - Độc lập */}
-      <div className="mt-4 sm:mt-8 bg-white rounded-lg p-4 sm:p-8 sm:px-24">
+      <div className="mt-4 sm:mt-8 bg-white rounded-lg p-4 sm:p-6 lg:px-24">
         <h2 className="text-2xl font-bold mb-6">Đánh giá sản phẩm</h2>
         <ReviewsTab
           productId={product._id}

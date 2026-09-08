@@ -14,19 +14,19 @@ const QuickSpecs = ({ specifications }) => {
   if (highlightSpecs.length === 0) return null;
 
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
       {highlightSpecs.map((spec) => (
         <div
           key={spec.key}
-          className="bg-white border-2 border-gray-200 rounded-xl p-3 hover:border-red-400 hover:shadow-md transition-all"
+          className="bg-white border-2 border-gray-200 rounded-lg p-2 sm:p-3 hover:border-red-400 hover:shadow-md transition-all"
         >
-          <div className="flex flex-col items-center text-center gap-2">
-            <div className="w-10 h-10 bg-red-50 rounded-lg flex items-center justify-center">
-              <spec.icon className="w-5 h-5 text-red-600" />
+          <div className="flex flex-col items-center text-center gap-1 sm:gap-2">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-red-50 rounded-lg flex items-center justify-center">
+              <spec.icon className="w-4 h-4 sm:w-5 sm:h-5 text-red-600" />
             </div>
-            <div>
-              <p className="text-xs text-gray-600 mb-1">{spec.label}</p>
-              <p className="text-sm font-bold text-gray-900">
+            <div className="min-w-0">
+              <p className="text-[10px] sm:text-xs text-gray-600 mb-0.5 sm:mb-1">{spec.label}</p>
+              <p className="text-xs sm:text-sm font-bold text-gray-900 truncate w-full text-center">
                 {specifications[spec.key]}
               </p>
             </div>
