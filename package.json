@@ -1,25 +1,27 @@
 {
-  "name": "smartmobilestore",
+  "name": "ninhkieu-istore",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Hệ thống bán hàng đa chi nhánh - Ninh Kiều iStore",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
   "scripts": {
-    "build": "npm install --prefix backend && npm install --prefix frontend && npm run build --prefix frontend",
-    "start": "npm run start --prefix backend",
-    "uat:omnichannel": "npm run uat:omnichannel --prefix backend"
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && npm run dev",
+    "build": "cd frontend && npm install && npm run build",
+    "build:frontend": "cd frontend && npm install && npm run build",
+    "start": "cd frontend && npm run preview"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Tuakkiek/SmartMobileStore.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/Tuakkiek/SmartMobileStore/issues"
-  },
-  "homepage": "https://github.com/Tuakkiek/SmartMobileStore#readme",
-  "dependencies": {
-    "remove-vietnamese-accents": "^1.0.7"
-  }
+  "keywords": [
+    "ecommerce",
+    "pos",
+    "omnichannel",
+    "mongodb",
+    "react"
+  ],
+  "author": "Ninh Kiều iStore",
+  "license": "MIT"
 }

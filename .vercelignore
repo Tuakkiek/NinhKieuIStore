@@ -1,0 +1,4 @@
+# Vercel - Không build/deploy backend
+# Chỉ build frontend + api functions
+
+backend
