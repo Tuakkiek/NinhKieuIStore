@@ -18,15 +18,15 @@ const QuickSpecs = ({ specifications }) => {
       {highlightSpecs.map((spec) => (
         <div
           key={spec.key}
-          className="bg-white border-2 border-gray-200 rounded-lg p-2 sm:p-3 hover:border-red-400 hover:shadow-md transition-all"
+          className="min-w-0 min-h-[142px] overflow-hidden bg-white border-2 border-gray-200 rounded-lg p-2 sm:p-3 hover:border-red-400 hover:shadow-md transition-all"
         >
-          <div className="flex flex-col items-center text-center gap-1 sm:gap-2">
+          <div className="flex h-full min-w-0 flex-col items-center text-center gap-1 sm:gap-2">
             <div className="w-8 h-8 sm:w-10 sm:h-10 bg-red-50 rounded-lg flex items-center justify-center">
               <spec.icon className="w-4 h-4 sm:w-5 sm:h-5 text-red-600" />
             </div>
-            <div className="min-w-0">
+            <div className="w-full min-w-0 overflow-hidden">
               <p className="text-[10px] sm:text-xs text-gray-600 mb-0.5 sm:mb-1">{spec.label}</p>
-              <p className="text-xs sm:text-sm font-bold text-gray-900 truncate w-full text-center">
+              <p className="w-full max-h-10 overflow-hidden text-xs sm:text-sm font-bold leading-5 text-gray-900 break-words text-center">
                 {specifications[spec.key]}
               </p>
             </div>
