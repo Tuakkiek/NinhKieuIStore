@@ -352,7 +352,7 @@ export const search = async (req, res) => {
     console.error("Search error:", error);
     return res.status(500).json({
       success: false,
-      message: "Loi khi tim kiem",
+      message: "Lỗi khi tìm kiếm",
       error: error.message,
     });
   }
@@ -426,7 +426,7 @@ export const autocomplete = async (req, res) => {
     console.error("Autocomplete error:", error);
     return res.status(500).json({
       success: false,
-      message: "Loi khi lay goi y",
+      message: "Lỗi khi lấy gợi ý",
     });
   }
 };

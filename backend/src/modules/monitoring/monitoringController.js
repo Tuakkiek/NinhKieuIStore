@@ -31,7 +31,7 @@ export const getOmnichannelSummary = async (req, res) => {
 
     res.status(500).json({
       success: false,
-      message: "Khong the lay tong quan monitoring omnichannel",
+      message: "Không thể lấy tổng quan monitoring omnichannel",
       error: error.message,
     });
   }
@@ -65,7 +65,7 @@ export const listOmnichannelEvents = async (req, res) => {
 
     res.status(500).json({
       success: false,
-      message: "Khong the lay danh sach event omnichannel",
+      message: "Không thể lấy danh sách event omnichannel",
       error: error.message,
     });
   }
@@ -87,7 +87,7 @@ export const getOmnichannelRolloutDecision = async (req, res) => {
 
     res.status(500).json({
       success: false,
-      message: "Khong the lay rollout decision",
+      message: "Không thể lấy rollout decision",
       error: error.message,
     });
   }

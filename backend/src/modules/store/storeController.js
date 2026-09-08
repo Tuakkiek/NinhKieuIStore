@@ -82,7 +82,7 @@ export const getAllStores = async (req, res) => {
     omniLog.error("getAllStores failed", { error: error.message });
     res.status(500).json({
       success: false,
-      message: "Khong the lay danh sach cua hang",
+      message: "Không thể lấy danh sách cửa hàng",
       error: error.message,
     });
   }
@@ -136,7 +136,7 @@ export const getNearbyStores = async (req, res) => {
 
     res.status(500).json({
       success: false,
-      message: "Khong the tim cua hang gan ban",
+      message: "Không thể tìm cửa hàng gần bạn",
       error: error.message,
     });
   }
@@ -149,7 +149,7 @@ export const getStoreById = async (req, res) => {
     if (!store) {
       return res.status(404).json({
         success: false,
-        message: "Khong tim thay cua hang",
+        message: "Không tìm thấy cửa hàng",
       });
     }
 
@@ -165,7 +165,7 @@ export const getStoreById = async (req, res) => {
 
     res.status(500).json({
       success: false,
-      message: "Loi khi lay thong tin cua hang",
+      message: "Lỗi khi lấy thông tin cửa hàng",
       error: error.message,
     });
   }
@@ -179,7 +179,7 @@ export const checkStoreStock = async (req, res) => {
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({
         success: false,
-        message: "Danh sach san pham khong hop le",
+        message: "Danh sách sản phẩm không hợp lệ",
       });
     }
 
@@ -219,7 +219,7 @@ export const checkStoreStock = async (req, res) => {
 
     res.status(500).json({
       success: false,
-      message: "Khong the kiem tra ton kho cua hang",
+      message: "Không thể kiểm tra tồn kho cửa hàng",
       error: error.message,
     });
   }

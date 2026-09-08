@@ -129,7 +129,7 @@ export const isSerializedProduct = (product = {}) => {
 
 export const formatWarrantyDuration = (months = 0) => {
   const normalizedMonths = Number(months) || 0;
-  if (normalizedMonths <= 0) return "Theo chinh sach cua hang";
+  if (normalizedMonths <= 0) return "Theo chính sách của cửa hàng";
   if (normalizedMonths < 12) return `${normalizedMonths} thang`;
   const years = Math.floor(normalizedMonths / 12);
   const remainingMonths = normalizedMonths % 12;
@@ -140,7 +140,7 @@ export const formatWarrantyDuration = (months = 0) => {
 export const formatIdentifierPolicy = (policy = "IMEI_OR_SERIAL") => {
   switch (policy) {
     case IDENTIFIER_POLICIES.NONE:
-      return "Khong yeu cau ma dinh danh";
+      return "Không yêu cầu mã định danh";
     case IDENTIFIER_POLICIES.IMEI:
       return "IMEI";
     case IDENTIFIER_POLICIES.SERIAL:
@@ -154,7 +154,7 @@ export const formatIdentifierPolicy = (policy = "IMEI_OR_SERIAL") => {
 
 export const formatWarrantyProvider = (provider = WARRANTY_PROVIDERS.BRAND) =>
   normalizeKey(provider) === WARRANTY_PROVIDERS.STORE
-    ? "Bao hanh cua hang"
-    : "Bao hanh hang";
+    ? "Bảo hành cửa hàng"
+    : "Bảo hành hãng";
 
 export { IDENTIFIER_POLICIES, TRACKING_MODES, WARRANTY_PROVIDERS };

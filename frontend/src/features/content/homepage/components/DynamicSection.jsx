@@ -225,7 +225,7 @@ const DynamicSection = ({
         .slice(0, config.limit || 10);
 
       const resolvedCategoryName =
-        config.categoryName || config.categoryFilter || "Danh muc";
+        config.categoryName || config.categoryFilter || "Danh mục";
       const viewAllLink = selectedCategoryId
         ? `/products?productType=${encodeURIComponent(
             selectedCategoryId

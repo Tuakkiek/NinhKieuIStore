@@ -14,15 +14,15 @@ const getModelsByType = () => ({
 const getAvailabilityMessage = (status) => {
   switch (normalizeProductStatus(status)) {
     case "COMING_SOON":
-      return "San pham sap mo ban";
+      return "Sản phẩm sắp mở bán";
     case "OUT_OF_STOCK":
-      return "San pham tam het hang";
+      return "Sản phẩm tạm hết hàng";
     case "PRE_ORDER":
-      return "San pham chua mo dat truoc";
+      return "Sản phẩm chưa mở đặt trước";
     case "DISCONTINUED":
-      return "San pham da ngung kinh doanh";
+      return "Sản phẩm đã ngừng kinh doanh";
     default:
-      return "San pham hien khong kha dung";
+      return "Sản phẩm hiện không khả dụng";
   }
 };
 
@@ -137,7 +137,7 @@ export const addToCart = async (req, res) => {
     if (!variant) {
       return res.status(404).json({
         success: false,
-        message: "Bien the khong ton tai",
+        message: "Biến thể không tồn tại",
       });
     }
 
@@ -145,7 +145,7 @@ export const addToCart = async (req, res) => {
     if (!product) {
       return res.status(404).json({
         success: false,
-        message: "San pham khong ton tai",
+        message: "Sản phẩm không tồn tại",
       });
     }
 
@@ -160,7 +160,7 @@ export const addToCart = async (req, res) => {
     if (Number(variant.stock) < Number(quantity)) {
       return res.status(400).json({
         success: false,
-        message: `Chi con ${variant.stock} san pham trong kho`,
+        message: `Chỉ còn ${variant.stock} sản phẩm trong kho`,
       });
     }
 
@@ -189,7 +189,7 @@ export const addToCart = async (req, res) => {
         if (newQuantity > Number(variant.stock || 0)) {
           return res.status(400).json({
             success: false,
-            message: `Chi con ${variant.stock} san pham trong kho`,
+            message: `Chỉ còn ${variant.stock} sản phẩm trong kho`,
           });
         }
         cart.items[itemIndex].quantity = newQuantity;
@@ -204,7 +204,7 @@ export const addToCart = async (req, res) => {
 
     res.json({
       success: true,
-      message: "Da them vao gio hang",
+      message: "Đã thêm vào giỏ hàng",
       data: {
         _id: cart._id,
         items: formattedItems,
@@ -228,7 +228,7 @@ export const updateCartItem = async (req, res) => {
     if (quantity < 0) {
       return res.status(400).json({
         success: false,
-        message: "So luong khong hop le",
+        message: "Số lượng không hợp lệ",
       });
     }
 
@@ -237,7 +237,7 @@ export const updateCartItem = async (req, res) => {
     if (!variant) {
       return res.status(404).json({
         success: false,
-        message: "Bien the khong ton tai",
+        message: "Biến thể không tồn tại",
       });
     }
 
@@ -245,7 +245,7 @@ export const updateCartItem = async (req, res) => {
     if (!product) {
       return res.status(404).json({
         success: false,
-        message: "San pham khong ton tai",
+        message: "Sản phẩm không tồn tại",
       });
     }
 
@@ -260,7 +260,7 @@ export const updateCartItem = async (req, res) => {
     if (quantity > 0 && Number(variant.stock) < Number(quantity)) {
       return res.status(400).json({
         success: false,
-        message: `Chi con ${variant.stock} san pham trong kho`,
+        message: `Chỉ còn ${variant.stock} sản phẩm trong kho`,
       });
     }
 
@@ -268,7 +268,7 @@ export const updateCartItem = async (req, res) => {
     if (!cart) {
       return res.status(404).json({
         success: false,
-        message: "Gio hang khong ton tai",
+        message: "Giỏ hàng không tồn tại",
       });
     }
 
@@ -281,7 +281,7 @@ export const updateCartItem = async (req, res) => {
     if (itemIndex === -1) {
       return res.status(404).json({
         success: false,
-        message: "San pham khong co trong gio hang",
+        message: "Sản phẩm không có trong giỏ hàng",
       });
     }
 
@@ -298,7 +298,7 @@ export const updateCartItem = async (req, res) => {
     const formattedItems = await populateCartItems(cart);
     res.json({
       success: true,
-      message: "Cap nhat gio hang thanh cong",
+      message: "Cập nhật giỏ hàng thành công",
       data: {
         _id: cart._id,
         customerId: cart.customerId,
@@ -319,7 +319,7 @@ export const removeFromCart = async (req, res) => {
     if (!cart) {
       return res.status(404).json({
         success: false,
-        message: "Gio hang khong ton tai",
+        message: "Giỏ hàng không tồn tại",
       });
     }
 
@@ -333,7 +333,7 @@ export const removeFromCart = async (req, res) => {
     if (cart.items.length === initialLength) {
       return res.status(404).json({
         success: false,
-        message: "San pham khong co trong gio hang",
+        message: "Sản phẩm không có trong giỏ hàng",
       });
     }
 
@@ -342,7 +342,7 @@ export const removeFromCart = async (req, res) => {
 
     res.json({
       success: true,
-      message: "Da xoa san pham khoi gio hang",
+      message: "Đã xóa sản phẩm khỏi giỏ hàng",
       data: {
         _id: cart._id,
         customerId: cart.customerId,
@@ -362,7 +362,7 @@ export const clearCart = async (req, res) => {
     if (!cart) {
       return res.status(404).json({
         success: false,
-        message: "Gio hang khong ton tai",
+        message: "Giỏ hàng không tồn tại",
       });
     }
 
@@ -371,7 +371,7 @@ export const clearCart = async (req, res) => {
 
     res.json({
       success: true,
-      message: "Da xoa toan bo gio hang",
+      message: "Đã xóa toàn bộ giỏ hàng",
       data: {
         _id: cart._id,
         customerId: cart.customerId,
@@ -391,7 +391,7 @@ export const validateCart = async (req, res) => {
     if (!cart || cart.items.length === 0) {
       return res.status(400).json({
         success: false,
-        message: "Gio hang trong",
+        message: "Giỏ hàng trống",
       });
     }
 
@@ -404,7 +404,7 @@ export const validateCart = async (req, res) => {
       if (!variant) {
         invalidItems.push({
           itemId: item._id,
-          reason: "Bien the khong ton tai",
+          reason: "Biến thể không tồn tại",
         });
         continue;
       }
@@ -413,7 +413,7 @@ export const validateCart = async (req, res) => {
       if (!product) {
         invalidItems.push({
           itemId: item._id,
-          reason: "San pham khong ton tai",
+          reason: "Sản phẩm không tồn tại",
         });
         continue;
       }
@@ -430,7 +430,7 @@ export const validateCart = async (req, res) => {
       if (Number(variant.stock) < Number(item.quantity)) {
         invalidItems.push({
           itemId: item._id,
-          reason: `Chi con ${variant.stock} san pham trong kho`,
+          reason: `Chỉ còn ${variant.stock} sản phẩm trong kho`,
           availableStock: variant.stock,
         });
         continue;
@@ -454,8 +454,8 @@ export const validateCart = async (req, res) => {
       success: invalidItems.length === 0,
       message:
         invalidItems.length === 0
-          ? "Gio hang hop le"
-          : "Co san pham khong hop le trong gio hang",
+          ? "Giỏ hàng hợp lệ"
+          : "Có sản phẩm không hợp lệ trong giỏ hàng",
       data: {
         valid: validItems,
         invalid: invalidItems,

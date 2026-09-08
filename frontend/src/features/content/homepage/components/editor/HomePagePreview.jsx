@@ -48,7 +48,7 @@ const HomePagePreview = ({ sections, mode = "desktop" }) => {
       case "category-nav":
         return (
           <div className="bg-gray-100 rounded-lg p-4 text-center text-xs text-gray-600">
-            Danh muc dong tu Product Types
+            Danh mục động từ Product Types
           </div>
         );
       case "deals-grid":

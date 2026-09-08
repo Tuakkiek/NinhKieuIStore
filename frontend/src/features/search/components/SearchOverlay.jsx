@@ -23,7 +23,7 @@ const TYPO_MAPPINGS = {
 const DEFAULT_QUICK_LINKS = [
   {
     id: "all-products",
-    name: "Tat ca san pham",
+    name: "Tất cả sản phẩm",
     description: "Xem toàn bộ danh sách sản phẩm",
     icon: "",
     to: "/products?page=1",
@@ -162,7 +162,7 @@ const SearchResultItem = ({ product, onClose, query }) => {
           {highlightText(product?.name || product?.model || "", query)}
         </h4>
         <p className="text-gray-500 text-xs mt-0.5 truncate">
-          {product?._categoryName || "San pham"}
+          {product?._categoryName || "Sản phẩm"}
         </p>
         <p className="text-blue-400 text-sm font-semibold mt-1">
           {new Intl.NumberFormat("vi-VN", {
@@ -193,7 +193,7 @@ const SearchOverlay = ({ isOpen, onClose }) => {
 
     return productTypes.slice(0, 8).map((item, index) => {
       const typeId = String(item?._id || "").trim();
-      const typeName = String(item?.name || "San pham").trim();
+      const typeName = String(item?.name || "Sản phẩm").trim();
       const params = new URLSearchParams();
 
       if (typeId) {
@@ -283,7 +283,7 @@ const SearchOverlay = ({ isOpen, onClose }) => {
         .map((product) => ({
           ...product,
           _score: toScore(product),
-          _categoryName: product?.productType?.name || "San pham",
+          _categoryName: product?.productType?.name || "Sản phẩm",
         }))
         .sort((a, b) => {
           if (b._score !== a._score) return b._score - a._score;
@@ -384,7 +384,7 @@ const SearchOverlay = ({ isOpen, onClose }) => {
                   <input
                     ref={searchInputRef}
                     type="text"
-                    placeholder="Tim kiem san pham..."
+                    placeholder="Tìm kiếm sản phẩm..."
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
                     className="w-full bg-gray-900/50 text-gray-300 rounded-lg py-4 pl-12 pr-6 focus:outline-none focus:bg-gray-900 placeholder-gray-500 transition-colors"
@@ -448,8 +448,8 @@ const SearchOverlay = ({ isOpen, onClose }) => {
               <div>
                 <h3 className="text-gray-500 text-xs font-semibold uppercase tracking-wider mb-4">
                   {isSearching
-                    ? "Dang tim kiem..."
-                    : `Ket qua cho "${correctedQuery || searchQuery}"`}
+                    ? "Đang tìm kiếm..."
+                    : `Kết quả cho "${correctedQuery || searchQuery}"`}
                 </h3>
 
                 {isSearching ? (

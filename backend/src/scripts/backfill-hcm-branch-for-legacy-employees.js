@@ -48,7 +48,7 @@ const run = async () => {
 
     const hcmStoreId = await findHoChiMinhStoreId();
     if (!hcmStoreId) {
-      throw new Error("Khong tim thay chi nhanh Ho Chi Minh");
+      throw new Error("Không tìm thấy chi nhánh Hồ Chí Minh");
     }
 
     const query = {

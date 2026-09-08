@@ -67,7 +67,7 @@ export const getEmployeeKPI = async (req, res) => {
     console.error("Get Employee KPI error:", error);
     res.status(500).json({
       success: false,
-      message: error.message || "Loi lay thong ke nhan vien",
+      message: error.message || "Lỗi lấy thống kê nhân viên",
     });
   }
 };
@@ -96,7 +96,7 @@ export const getPersonalStats = async (req, res) => {
     console.error("Get Personal Stats error:", error);
     res.status(500).json({
       success: false,
-      message: error.message || "Loi lay thong ke ca nhan",
+      message: error.message || "Lỗi lấy thống kê cá nhân",
     });
   }
 };

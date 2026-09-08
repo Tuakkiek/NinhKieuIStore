@@ -25,7 +25,7 @@ export const WarrantyTab = ({ product }) => {
   const identifierPolicy = formatIdentifierPolicy(config.identifierPolicy);
   const warrantyTerms =
     config.warrantyTerms ||
-    "Ap dung theo dieu kien bao hanh cua cua hang va nha san xuat.";
+    "Áp dụng theo điều kiện bảo hành của cửa hàng và nhà sản xuất.";
 
   return (
     <div className="space-y-6">
@@ -33,11 +33,11 @@ export const WarrantyTab = ({ product }) => {
         <div className="flex items-center gap-3">
           <Gift className="h-8 w-8" />
           <div>
-            <h3 className="text-xl font-bold">Dich vu sau ban hang</h3>
+            <h3 className="text-xl font-bold">Dịch vụ sau bán hàng</h3>
             <p className="mt-1 text-sm text-orange-50">
               {serializedTracking
-                ? "Thiet bi duoc quan ly bao hanh cua hang theo ma dinh danh rieng."
-                : "San pham hien thi thong tin bao hanh theo chinh sach dang ap dung."}
+                ? "Thiết bị được quản lý bảo hành cửa hàng theo mã định danh riêng."
+                : "Sản phẩm hiển thị thông tin bảo hành theo chính sách đang áp dụng."}
             </p>
           </div>
         </div>
@@ -59,8 +59,8 @@ export const WarrantyTab = ({ product }) => {
           <p className="text-lg font-bold text-emerald-900">{identifierPolicy}</p>
           <p className="mt-1 text-sm text-slate-700">
             {serializedTracking
-              ? "Ma dinh danh dung de tao va tra cuu phieu bao hanh cua hang."
-              : "San pham nay khong bat buoc theo doi IMEI/Serial trong he thong."}
+              ? "Mã định danh dùng để tạo và tra cứu phiếu bảo hành của cửa hàng."
+              : "Sản phẩm này không bắt buộc theo dõi IMEI/Serial trong hệ thống."}
           </p>
         </div>
 
@@ -69,12 +69,12 @@ export const WarrantyTab = ({ product }) => {
             <RefreshCw className="h-6 w-6" />
           </div>
           <p className="text-lg font-bold text-orange-900">
-            {serializedTracking ? "Co theo doi tung may" : "Khong tao phieu theo tung may"}
+            {serializedTracking ? "Có theo dõi từng máy" : "Không tạo phiếu theo từng máy"}
           </p>
           <p className="mt-1 text-sm text-slate-700">
             {serializedTracking
-              ? "Warranty duoc gan truc tiep vao IMEI/Serial va so dien thoai khach hang."
-              : "He thong khong tao phieu bao hanh cua hang cho nhom san pham nay."}
+              ? "Warranty được gắn trực tiếp vào IMEI/Serial và số điện thoại khách hàng."
+              : "Hệ thống không tạo phiếu bảo hành cửa hàng cho nhóm sản phẩm này."}
           </p>
         </div>
       </div>
@@ -83,7 +83,7 @@ export const WarrantyTab = ({ product }) => {
         <div className="border-b bg-slate-50 px-6 py-4">
           <h3 className="flex items-center gap-2 text-lg font-bold text-slate-900">
             <ShieldCheck className="h-5 w-5 text-blue-600" />
-            Chinh sach bao hanh
+            Chính sách bảo hành
           </h3>
         </div>
         <div className="space-y-4 p-6">
@@ -92,9 +92,9 @@ export const WarrantyTab = ({ product }) => {
               <Clock className="h-4 w-4" />
             </div>
             <div>
-              <p className="font-semibold text-slate-900">Thoi han bao hanh</p>
+              <p className="font-semibold text-slate-900">Thời hạn bảo hành</p>
               <p className="text-sm text-slate-600">
-                Bao hanh duoc tinh tu ngay ban giao va keo dai trong{" "}
+                Bảo hành được tính từ ngày bàn giao và kéo dài trong{" "}
                 {warrantyDuration.toLowerCase()}.
               </p>
             </div>
@@ -105,10 +105,10 @@ export const WarrantyTab = ({ product }) => {
               <Smartphone className="h-4 w-4" />
             </div>
             <div>
-              <p className="font-semibold text-slate-900">Tra cuu cong khai</p>
+              <p className="font-semibold text-slate-900">Tra cứu công khai</p>
               <p className="text-sm text-slate-600">
-                Khach hang co the kiem tra thong tin bang so dien thoai hoac{" "}
-                {identifierPolicy.toLowerCase()} khi san pham duoc cua hang tu bao hanh.
+                Khách hàng có thể kiểm tra thông tin bằng số điện thoại hoặc{" "}
+                {identifierPolicy.toLowerCase()} khi sản phẩm được cửa hàng tự bảo hành.
               </p>
             </div>
           </div>
@@ -118,7 +118,7 @@ export const WarrantyTab = ({ product }) => {
               <Shield className="h-4 w-4" />
             </div>
             <div>
-              <p className="font-semibold text-slate-900">Dieu khoan ap dung</p>
+              <p className="font-semibold text-slate-900">Điều khoản áp dụng</p>
               <p className="text-sm text-slate-600">{warrantyTerms}</p>
             </div>
           </div>
@@ -129,33 +129,33 @@ export const WarrantyTab = ({ product }) => {
         <div className="border-b bg-orange-50 px-6 py-4">
           <h3 className="flex items-center gap-2 text-lg font-bold text-orange-900">
             <RefreshCw className="h-5 w-5" />
-            Doi tra va ho tro
+            Đổi trả và hỗ trợ
           </h3>
         </div>
         <div className="grid gap-5 p-6 md:grid-cols-2">
           <div className="space-y-3">
             <div className="flex items-start gap-2 text-sm text-slate-700">
               <Check className="mt-0.5 h-4 w-4 text-emerald-600" />
-              <span>Warranty cua hang chi duoc tao khi san pham thuoc nhom STORE.</span>
+              <span>Warranty cửa hàng chỉ được tạo khi sản phẩm thuộc nhóm STORE.</span>
             </div>
             <div className="flex items-start gap-2 text-sm text-slate-700">
               <Check className="mt-0.5 h-4 w-4 text-emerald-600" />
-              <span>IMEI/Serial duoc luu de truy vet chinh xac tung thiet bi can bao hanh.</span>
+              <span>IMEI/Serial được lưu để truy vết chính xác từng thiết bị cần bảo hành.</span>
             </div>
             <div className="flex items-start gap-2 text-sm text-slate-700">
               <Check className="mt-0.5 h-4 w-4 text-emerald-600" />
-              <span>Khach hang co the tim lai phieu bao hanh bang so dien thoai mua hang.</span>
+              <span>Khách hàng có thể tìm lại phiếu bảo hành bằng số điện thoại mua hàng.</span>
             </div>
           </div>
 
           <div className="space-y-3">
             <div className="flex items-start gap-2 text-sm text-slate-700">
               <Truck className="mt-0.5 h-4 w-4 text-blue-600" />
-              <span>San pham moi duoc hien thi theo chinh sach bao hanh hang, khong tao phieu store warranty.</span>
+              <span>Sản phẩm mới được hiển thị theo chính sách bảo hành hãng, không tạo phiếu store warranty.</span>
             </div>
             <div className="flex items-start gap-2 text-sm text-slate-700">
               <Gift className="mt-0.5 h-4 w-4 text-orange-600" />
-              <span>Quy tac co the duoc mo rong cho dien thoai, laptop, tai nghe va cac nhom san pham khac.</span>
+              <span>Quy tắc có thể được mở rộng cho điện thoại, laptop, tai nghe và các nhóm sản phẩm khác.</span>
             </div>
           </div>
         </div>

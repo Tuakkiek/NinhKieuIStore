@@ -202,7 +202,7 @@ export const directStockIn = async (req, res) => {
       await session.abortTransaction();
       return res.status(400).json({
         success: false,
-        message: "Danh sach san pham nhap kho khong hop le",
+        message: "Danh sách sản phẩm nhập kho không hợp lệ",
       });
     }
 
@@ -230,7 +230,7 @@ export const directStockIn = async (req, res) => {
         inboundSellingPrice <= 0
       ) {
         throw new Error(
-          `Du lieu khong hop le cho SKU ${normalizedSku || "(trong)"}. Can sku, quantity > 0, locationCode, costPrice >= 0, sellingPrice > 0`
+          `Dữ liệu không hợp lệ cho SKU ${normalizedSku || "(trống)"}. Cần sku, quantity > 0, locationCode, costPrice >= 0, sellingPrice > 0`
         );
       }
 
@@ -238,14 +238,14 @@ export const directStockIn = async (req, res) => {
         session
       );
       if (!variant) {
-        throw new Error(`Khong tim thay bien the SKU: ${normalizedSku}`);
+        throw new Error(`Không tìm thấy biến thể SKU: ${normalizedSku}`);
       }
 
       const product = await UniversalProduct.findById(variant.productId).session(
         session
       );
       if (!product) {
-        throw new Error(`Khong tim thay san pham cho SKU: ${normalizedSku}`);
+        throw new Error(`Không tìm thấy sản phẩm cho SKU: ${normalizedSku}`);
       }
       const statusBeforeStockIn = String(product.status || "");
 
@@ -255,14 +255,14 @@ export const directStockIn = async (req, res) => {
         status: "ACTIVE",
       }).session(session);
       if (!location) {
-        throw new Error(`Khong tim thay vi tri kho: ${normalizedLocationCode}`);
+        throw new Error(`Không tìm thấy vị trí kho: ${normalizedLocationCode}`);
       }
 
       const currentLoad = Number(location.currentLoad) || 0;
       const capacity = Number(location.capacity) || 0;
       if (capacity > 0 && currentLoad + qty > capacity) {
         throw new Error(
-          `Vi tri kho ${normalizedLocationCode} khong du cho (${currentLoad}/${capacity})`
+          `Vị trí kho ${normalizedLocationCode} không đủ chỗ (${currentLoad}/${capacity})`
         );
       }
 
@@ -420,7 +420,7 @@ export const directStockIn = async (req, res) => {
     await session.abortTransaction();
     res.status(400).json({
       success: false,
-      message: error.message || "Loi khi nhap kho",
+      message: error.message || "Lỗi khi nhập kho",
     });
   } finally {
     session.endSession();
@@ -484,7 +484,7 @@ export const getStockInHistory = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: "Loi khi lay lich su nhap kho",
+      message: "Lỗi khi lấy lịch sử nhập kho",
       error: error.message,
     });
   }

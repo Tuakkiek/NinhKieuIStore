@@ -27,7 +27,7 @@ export const useCartStore = create((set, get) => ({
       });
     } catch (error) {
       set({
-        error: error.response?.data?.message || "Lay gio hang that bai",
+        error: error.response?.data?.message || "Lấy giỏ hàng thất bại",
         isLoading: false,
       });
     }
@@ -46,20 +46,20 @@ export const useCartStore = create((set, get) => ({
       set({ cartCount: 0 });
       return {
         success: false,
-        message: error.response?.data?.message || "Lay so luong gio hang that bai",
+        message: error.response?.data?.message || "Lấy số lượng giỏ hàng thất bại",
       };
     }
   },
 
   addToCart: async (variantId, quantity = 1, productType) => {
     if (!variantId) {
-      const message = "Thieu variantId";
+      const message = "Thiếu variantId";
       set({ error: message, isLoading: false });
       return { success: false, message };
     }
 
     if (!productType) {
-      const message = "Thieu productType";
+      const message = "Thiếu productType";
       set({ error: message, isLoading: false });
       return { success: false, message };
     }
@@ -88,7 +88,7 @@ export const useCartStore = create((set, get) => ({
       return { success: true, message: response.data?.message };
     } catch (error) {
       const message =
-        error.response?.data?.message || "Them vao gio hang that bai";
+        error.response?.data?.message || "Thêm vào giỏ hàng thất bại";
       set({ error: message, isLoading: false });
       return { success: false, message };
     }
@@ -96,7 +96,7 @@ export const useCartStore = create((set, get) => ({
 
   updateCartItem: async (itemId, quantity) => {
     if (!itemId || quantity < 0) {
-      return { success: false, message: "Thong tin khong hop le" };
+      return { success: false, message: "Thông tin không hợp lệ" };
     }
 
     set({ isLoading: true, error: null });
@@ -112,7 +112,7 @@ export const useCartStore = create((set, get) => ({
       });
 
       if (!item) {
-        throw new Error("Khong tim thay san pham trong gio hang");
+        throw new Error("Không tìm thấy sản phẩm trong giỏ hàng");
       }
 
       const response = await cartAPI.updateItem({
@@ -132,7 +132,7 @@ export const useCartStore = create((set, get) => ({
       const message =
         error.response?.data?.message ||
         error.message ||
-        "Cap nhat gio hang that bai";
+        "Cập nhật giỏ hàng thất bại";
       set({ error: message, isLoading: false });
       return { success: false, message };
     }
@@ -140,7 +140,7 @@ export const useCartStore = create((set, get) => ({
 
   removeFromCart: async (itemId) => {
     if (!itemId) {
-      return { success: false, message: "Thieu thong tin san pham" };
+      return { success: false, message: "Thiếu thông tin sản phẩm" };
     }
 
     set({ isLoading: true, error: null });
@@ -156,7 +156,7 @@ export const useCartStore = create((set, get) => ({
       });
 
       if (!item) {
-        throw new Error("Khong tim thay san pham trong gio hang");
+        throw new Error("Không tìm thấy sản phẩm trong giỏ hàng");
       }
 
       const deleteId = item._id || item.variantId;
@@ -171,7 +171,7 @@ export const useCartStore = create((set, get) => ({
       return { success: true };
     } catch (error) {
       const message =
-        error.response?.data?.message || error.message || "Xoa san pham that bai";
+        error.response?.data?.message || error.message || "Xóa sản phẩm thất bại";
       set({ error: message, isLoading: false });
       return { success: false, message };
     }
@@ -184,7 +184,7 @@ export const useCartStore = create((set, get) => ({
       set({ cart: { items: [] }, cartCount: 0, isLoading: false });
       return { success: true };
     } catch (error) {
-      const message = error.response?.data?.message || "Xoa gio hang that bai";
+      const message = error.response?.data?.message || "Xóa giỏ hàng thất bại";
       set({ error: message, isLoading: false });
       return { success: false, message };
     }

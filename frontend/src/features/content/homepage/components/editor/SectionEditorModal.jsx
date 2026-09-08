@@ -313,7 +313,7 @@ const SectionEditorModal = ({ section, open, onClose }) => {
                   <SelectValue
                     placeholder={
                       loadingProductTypes
-                        ? "Dang tai danh muc..."
+                        ? "Đang tải danh mục..."
                         : "Select category"
                     }
                   />

@@ -316,14 +316,14 @@ export const startGoodsReceipt = async (req, res) => {
     if (!po) {
       return res.status(404).json({
         success: false,
-        message: "Khong tim thay don dat hang",
+        message: "Không tìm thấy đơn đặt hàng",
       });
     }
 
     if (!RECEIVABLE_PO_STATUSES.has(po.status)) {
       return res.status(400).json({
         success: false,
-        message: "Don hang chua san sang de nhan hang",
+        message: "Đơn hàng chưa sẵn sàng để nhận hàng",
       });
     }
 
@@ -375,7 +375,7 @@ export const startGoodsReceipt = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: "Loi khi bat dau nhan hang",
+      message: "Lỗi khi bắt đầu nhận hàng",
       error: error.message,
     });
   }
@@ -413,7 +413,7 @@ export const receiveItem = async (req, res) => {
       await session.abortTransaction();
       return res.status(400).json({
         success: false,
-        message: "Du lieu nhan hang khong hop le",
+        message: "Dữ liệu nhận hàng không hợp lệ",
       });
     }
 
@@ -421,7 +421,7 @@ export const receiveItem = async (req, res) => {
       await session.abortTransaction();
       return res.status(400).json({
         success: false,
-        message: "So luong hu hong khong hop le",
+        message: "Số lượng hư hỏng không hợp lệ",
       });
     }
 
@@ -430,7 +430,7 @@ export const receiveItem = async (req, res) => {
       await session.abortTransaction();
       return res.status(404).json({
         success: false,
-        message: "Khong tim thay don dat hang",
+        message: "Không tìm thấy đơn đặt hàng",
       });
     }
 
@@ -438,7 +438,7 @@ export const receiveItem = async (req, res) => {
       await session.abortTransaction();
       return res.status(400).json({
         success: false,
-        message: "Don hang khong o trang thai co the nhan",
+        message: "Đơn hàng không ở trạng thái có thể nhận",
       });
     }
 
@@ -447,7 +447,7 @@ export const receiveItem = async (req, res) => {
       await session.abortTransaction();
       return res.status(404).json({
         success: false,
-        message: "Khong tim thay SKU trong don hang",
+        message: "Không tìm thấy SKU trong đơn hàng",
       });
     }
 
@@ -460,7 +460,7 @@ export const receiveItem = async (req, res) => {
       await session.abortTransaction();
       return res.status(400).json({
         success: false,
-        message: "SKU nay da nhan du theo don hang",
+        message: "SKU này đã nhận đủ theo đơn hàng",
       });
     }
 
@@ -513,7 +513,7 @@ export const receiveItem = async (req, res) => {
       await session.abortTransaction();
       return res.status(404).json({
         success: false,
-        message: `Khong tim thay bien the SKU: ${normalizedSku}`,
+        message: `Không tìm thấy biến thể SKU: ${normalizedSku}`,
       });
     }
 
@@ -529,7 +529,7 @@ export const receiveItem = async (req, res) => {
       await session.abortTransaction();
       return res.status(404).json({
         success: false,
-        message: "Khong tim thay vi tri kho",
+        message: "Không tìm thấy vị trí kho",
       });
     }
 
@@ -539,7 +539,7 @@ export const receiveItem = async (req, res) => {
       await session.abortTransaction();
       return res.status(400).json({
         success: false,
-        message: "Vi tri kho khong du cho",
+        message: "Vị trí kho không đủ chỗ",
       });
     }
 
@@ -675,7 +675,7 @@ export const receiveItem = async (req, res) => {
 
     res.json({
       success: true,
-      message: "Da nhan hang thanh cong",
+      message: "Đã nhận hàng thành công",
       inventory,
       location: {
         locationCode: location.locationCode,
@@ -698,7 +698,7 @@ export const receiveItem = async (req, res) => {
     await session.abortTransaction();
     res.status(500).json({
       success: false,
-      message: "Loi khi nhan hang",
+      message: "Lỗi khi nhận hàng",
       error: error.message,
     });
   } finally {
@@ -722,7 +722,7 @@ export const completeGoodsReceipt = async (req, res) => {
       await session.abortTransaction();
       return res.status(400).json({
         success: false,
-        message: "Thieu poId",
+        message: "Thiếu poId",
       });
     }
 
@@ -731,7 +731,7 @@ export const completeGoodsReceipt = async (req, res) => {
       await session.abortTransaction();
       return res.status(404).json({
         success: false,
-        message: "Khong tim thay don dat hang",
+        message: "Không tìm thấy đơn đặt hàng",
       });
     }
 
@@ -739,7 +739,7 @@ export const completeGoodsReceipt = async (req, res) => {
       await session.abortTransaction();
       return res.status(400).json({
         success: false,
-        message: "Don dat hang da hoan tat truoc do",
+        message: "Đơn đặt hàng đã hoàn tất trước đó",
       });
     }
 
@@ -747,7 +747,7 @@ export const completeGoodsReceipt = async (req, res) => {
       await session.abortTransaction();
       return res.status(400).json({
         success: false,
-        message: "Don hang khong o trang thai co the hoan tat nhan",
+        message: "Đơn hàng không ở trạng thái có thể hoàn tất nhận",
       });
     }
 
@@ -758,7 +758,7 @@ export const completeGoodsReceipt = async (req, res) => {
       await session.abortTransaction();
       return res.status(400).json({
         success: false,
-        message: "Don hang chua co SKU nao duoc nhan",
+        message: "Đơn hàng chưa có SKU nào được nhận",
       });
     }
 
@@ -843,7 +843,7 @@ export const completeGoodsReceipt = async (req, res) => {
 
     res.json({
       success: true,
-      message: "Da hoan tat nhan hang",
+      message: "Đã hoàn tất nhận hàng",
       goodsReceipt: grn,
       purchaseOrder: po,
     });
@@ -851,7 +851,7 @@ export const completeGoodsReceipt = async (req, res) => {
     await session.abortTransaction();
     res.status(500).json({
       success: false,
-      message: "Loi khi hoan tat nhan hang",
+      message: "Lỗi khi hoàn tất nhận hàng",
       error: error.message,
     });
   } finally {
@@ -896,7 +896,7 @@ export const getGoodsReceipts = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: "Loi khi lay danh sach phieu nhap kho",
+      message: "Lỗi khi lấy danh sách phiếu nhập kho",
       error: error.message,
     });
   }

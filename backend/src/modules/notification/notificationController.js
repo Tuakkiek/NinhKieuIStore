@@ -68,7 +68,7 @@ export const getMyNotifications = async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: "Khong the lay thong bao",
+      message: "Không thể lấy thông báo",
       error: error.message,
     });
   }
@@ -96,7 +96,7 @@ export const markAsRead = async (req, res) => {
     if (!notification) {
       return res.status(404).json({
         success: false,
-        message: "Khong tim thay thong bao",
+        message: "Không tìm thấy thông báo",
       });
     }
 
@@ -107,7 +107,7 @@ export const markAsRead = async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: "Khong the danh dau da doc",
+      message: "Không thể đánh dấu đã đọc",
       error: error.message,
     });
   }
@@ -135,7 +135,7 @@ export const markAllAsRead = async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: "Khong the danh dau tat ca da doc",
+      message: "Không thể đánh dấu tất cả đã đọc",
       error: error.message,
     });
   }

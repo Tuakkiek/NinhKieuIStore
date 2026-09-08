@@ -39,7 +39,7 @@ const run = async () => {
     .select("_id name")
     .lean();
   if (!sampleStore) {
-    throw new Error("Khong tim thay chi nhanh ACTIVE de gan nhan vien.");
+    throw new Error("Không tìm thấy chi nhánh ACTIVE để gán nhân viên.");
   }
 
   const branchId = String(sampleStore._id);

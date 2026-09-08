@@ -320,7 +320,7 @@ const EditInvoiceDialog = ({
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                       {item.serializedTrackingEnabled && (
                         <div className="md:col-span-3 rounded-lg border border-dashed border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-700">
-                          Chua co thiet bi da dang ky trong kho. Vui long nhap IMEI/Serial de tao phieu bao hanh.
+                          Chưa có thiết bị đã đăng ký trong kho. Vui lòng nhập IMEI/Serial để tạo phiếu bảo hành.
                         </div>
                       )}
                       <div>

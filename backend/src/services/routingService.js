@@ -207,7 +207,7 @@ const findBestStoreLegacy = async (activeStores, orderItems, customerAddress = {
   if (storesWithStock.length === 0) {
     return {
       success: false,
-      message: "San pham tam het hang, vui long lien he hotline",
+      message: "Sản phẩm tạm hết hàng, vui lòng liên hệ hotline",
       suggestPreOrder: true,
     };
   }
@@ -250,7 +250,7 @@ export const findBestStore = async (orderItems, customerAddress = {}, options = 
       omniLog.warn("findBestStore: no active stores found");
       return {
         success: false,
-        message: "Khong co cua hang kha dung",
+        message: "Không có cửa hàng khả dụng",
       };
     }
 
@@ -367,7 +367,7 @@ export const reserveInventory = async (storeId, orderItems, options = {}) => {
       const item = getItemIdentity(rawItem);
 
       if (!item.productId || !item.variantSku || item.quantity <= 0) {
-        throw new Error("Thong tin san pham reserve khong hop le");
+        throw new Error("Thông tin sản phẩm reserve không hợp lệ");
       }
 
       const inventory = await buildStoreInventoryQuery({
@@ -377,7 +377,7 @@ export const reserveInventory = async (storeId, orderItems, options = {}) => {
       }, session);
 
       if (!inventory || Number(inventory.available) < item.quantity) {
-        throw new Error(`Khong du hang: ${item.name || item.variantSku}`);
+        throw new Error(`Không đủ hàng: ${item.name || item.variantSku}`);
       }
 
       inventory.reserved += item.quantity;

@@ -446,7 +446,7 @@ const resolveEmployeeStoreLocation = async ({ role, storeLocation }) => {
 
   const hoChiMinhStoreId = await resolveHoChiMinhStoreId();
   if (!hoChiMinhStoreId) {
-    throw new Error("Khong tim thay chi nhanh Ho Chi Minh de gan mac dinh");
+    throw new Error("Không tìm thấy chi nhánh Hồ Chí Minh để gán mặc định");
   }
 
   return hoChiMinhStoreId;
@@ -868,7 +868,7 @@ export const createEmployee = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: "Tao nhan vien thanh cong",
+      message: "Tạo nhân viên thành công",
       data: {
         user,
         roleSync: roleSync
@@ -999,7 +999,7 @@ export const updateEmployee = async (req, res) => {
       return res.status(404).json({
         success: false,
         code: "USER_NOT_FOUND",
-        message: "Khong tim thay nhan vien",
+        message: "Không tìm thấy nhân viên",
       });
     }
 
@@ -1116,7 +1116,7 @@ export const updateEmployee = async (req, res) => {
 
     return res.json({
       success: true,
-      message: "Cap nhat nhan vien thanh cong",
+      message: "Cập nhật nhân viên thành công",
       data: {
         user,
         roleSync: roleSync

@@ -112,7 +112,7 @@ export const createPaymentUrl = async (req, res) => {
       vnp_CurrCode: "VND",
       vnp_TxnRef: orderId_vnp,
       vnp_OrderInfo:
-        orderDescription || `Thanh toan don hang ${order.orderNumber}`,
+        orderDescription || `Thanh toán đơn hàng ${order.orderNumber}`,
       vnp_OrderType: "other",
       vnp_Amount: amount * 100,
       vnp_ReturnUrl: returnUrl,

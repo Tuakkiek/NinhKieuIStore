@@ -101,9 +101,9 @@ const CARRIER_EVENT_TO_STATUS = Object.freeze({
 const RETURN_RESTORE_STATUSES = new Set(["RETURNED", "DELIVERY_FAILED"]);
 const RETURN_REASON_TYPES = new Set(["CUSTOMER_REJECTED", "PRODUCT_DEFECT", "OTHER"]);
 const RETURN_REASON_LABELS = Object.freeze({
-  CUSTOMER_REJECTED: "Khong nhan - Khach hang tu choi nhan hang",
-  PRODUCT_DEFECT: "Hang loi - San pham bi hong, loi, sai specifications",
-  OTHER: "Khac - Cac ly do khac",
+  CUSTOMER_REJECTED: "Không nhận - Khách hàng từ chối nhận hàng",
+  PRODUCT_DEFECT: "Hàng lỗi - Sản phẩm bị hỏng, lỗi, sai thông số",
+  OTHER: "Khác - Các lý do khác",
 });
 const RETURN_RESTORE_REASON_TYPES = new Set(["CUSTOMER_REJECTED"]);
 
@@ -144,7 +144,7 @@ const normalizeReturnReasonPayload = (payload) => {
   }
 
   if (typeof payload !== "object" || Array.isArray(payload)) {
-    throw badRequest("Ly do tra hang khong hop le");
+    throw badRequest("Lý do trả hàng không hợp lệ");
   }
 
   const rawType = payload.type || payload.reasonType || "";
@@ -152,11 +152,11 @@ const normalizeReturnReasonPayload = (payload) => {
   const detail = String(payload.detail || payload.reasonDetail || "").trim();
 
   if (!RETURN_REASON_TYPES.has(type)) {
-    throw badRequest("Loai ly do tra hang khong hop le");
+    throw badRequest("Loại lý do trả hàng không hợp lệ");
   }
 
   if (type === "OTHER" && !detail) {
-    throw badRequest("Vui long nhap chi tiet ly do tra hang");
+    throw badRequest("Vui lòng nhập chi tiết lý do trả hàng");
   }
 
   return {
@@ -375,7 +375,7 @@ const validateShipperBranchScope = ({ req, order, shipper }) => {
   if (!requiredBranchId) {
     return {
       allowed: false,
-      message: "Khong xac dinh duoc chi nhanh hien tai de gan shipper",
+      message: "Không xác định được chi nhánh hiện tại để gán shipper",
     };
   }
 
@@ -383,21 +383,21 @@ const validateShipperBranchScope = ({ req, order, shipper }) => {
   if (shipperBranchIds.length === 0) {
     return {
       allowed: false,
-      message: "Shipper chua duoc gan chi nhanh hoat dong",
+      message: "Shipper chưa được gán chi nhánh hoạt động",
     };
   }
 
   if (orderBranchId && !shipperBranchIds.includes(orderBranchId)) {
     return {
       allowed: false,
-      message: "Shipper phai thuoc chi nhanh dang xu ly don hang",
+      message: "Shipper phải thuộc chi nhánh đang xử lý đơn hàng",
     };
   }
 
   if (!shipperBranchIds.includes(requiredBranchId)) {
     return {
       allowed: false,
-      message: "Chi duoc chon shipper cung chi nhanh hien tai",
+      message: "Chỉ được chọn shipper cùng chi nhánh hiện tại",
     };
   }
 

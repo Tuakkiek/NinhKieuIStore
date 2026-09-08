@@ -369,7 +369,7 @@ export const useAuthStore = create(
         } catch (error) {
           return {
             success: false,
-            message: error.response?.data?.message || "Khong the gui ma OTP",
+            message: error.response?.data?.message || "Không thể gửi mã OTP",
           };
         }
       },
@@ -377,7 +377,7 @@ export const useAuthStore = create(
       verifyStepUp: async (otp) => {
         const { stepUpState } = get();
         if (!stepUpState.sessionToken) {
-          return { success: false, message: "Khong co session step-up dang cho" };
+          return { success: false, message: "Không có session step-up đang chờ" };
         }
 
         try {
@@ -405,7 +405,7 @@ export const useAuthStore = create(
         } catch (error) {
           return {
             success: false,
-            message: error.response?.data?.message || "Ma OTP khong chinh xac",
+            message: error.response?.data?.message || "Mã OTP không chính xác",
             attemptsLeft: error.response?.data?.data?.attemptsLeft,
           };
         }

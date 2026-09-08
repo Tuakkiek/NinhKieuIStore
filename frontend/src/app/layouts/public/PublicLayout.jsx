@@ -18,7 +18,7 @@ import PublicNavigationMenus from "./components/PublicNavigationMenus";
 const stores = [
   {
     id: 1,
-    name: "Ninh Kieu iSTORE - Chi nhanh Tran Hung Dao",
+    name: "Ninh Kiều iSTORE - Chi nhánh Trần Hưng Đạo",
     district: "Ninh Kieu",
     address: "123 Tran Hung Dao, Phuong Cai Khe, Quan Ninh Kieu, TP. Can Tho",
     phone: "0292 3831 234",
@@ -27,7 +27,7 @@ const stores = [
   },
   {
     id: 2,
-    name: "Ninh Kieu iSTORE - Chi nhanh Mau Than",
+    name: "Ninh Kiều iSTORE - Chi nhánh Mậu Thân",
     district: "Ninh Kieu",
     address: "456 Mau Than, Phuong An Hoa, Quan Ninh Kieu, TP. Can Tho",
     phone: "0292 3831 567",
@@ -67,12 +67,12 @@ const stores = [
   },
 ];
 
-const districts = ["Tat ca", "Ninh Kieu", "Cai Rang", "Binh Thuy", "O Mon"];
+const districts = ["Tất cả", "Ninh Kiều", "Cái Răng", "Bình Thủy", "Ô Môn"];
 
 const FOOTER_FALLBACK_CATEGORY_LINKS = [
   {
     id: "all-products",
-    name: "Tat ca san pham",
+    name: "Tất cả sản phẩm",
     to: "/products?page=1",
     icon: "",
   },
@@ -171,7 +171,7 @@ const PublicLayout = () => {
     footerProductTypes.length > 0
       ? footerProductTypes.slice(0, 6).map((item, index) => {
           const typeId = String(item?._id || "").trim();
-          const typeName = String(item?.name || `Danh muc ${index + 1}`).trim();
+          const typeName = String(item?.name || `Danh mục ${index + 1}`).trim();
           const params = new URLSearchParams();
 
           if (typeId) {

@@ -341,7 +341,7 @@ export const createPOSOrder = async (req, res) => {
             province: store?.address?.province || "",
             district: store?.address?.district || "",
             ward: store?.address?.ward || "",
-            detailAddress: "Mua tai cua hang",
+            detailAddress: "Mua tại cửa hàng",
           },
           paymentMethod: "CASH",
           paymentStatus: "UNPAID",
@@ -385,13 +385,13 @@ export const createPOSOrder = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: "Da tao don chuyen kho thanh cong. Don dang cho Order Manager xu ly.",
+      message: "Đã tạo đơn chuyển kho thành công. Đơn đang chờ Order Manager xử lý.",
       data: { order },
     });
   } catch (error) {
     await session.abortTransaction();
     console.error("CREATE POS ORDER ERROR:", error);
-    return handleError(res, error, "Loi tao don hang");
+    return handleError(res, error, "Lỗi tạo đơn hàng");
   } finally {
     session.endSession();
   }
@@ -458,7 +458,7 @@ export const getPOSOrderById = async (req, res) => {
     if (!order) {
       return res.status(404).json({
         success: false,
-        message: "Khong tim thay don hang",
+        message: "Không tìm thấy đơn hàng",
       });
     }
 
@@ -470,7 +470,7 @@ export const getPOSOrderById = async (req, res) => {
         return res.status(403).json({
           success: false,
           code: "ORDER_BRANCH_FORBIDDEN",
-          message: "POS staff chi duoc xem don do chinh minh tao trong chi nhanh cua minh",
+          message: "Nhân viên POS chỉ được xem đơn do chính mình tạo trong chi nhánh của mình",
         });
       }
     }
@@ -481,7 +481,7 @@ export const getPOSOrderById = async (req, res) => {
     });
   } catch (error) {
     console.error("GET POS ORDER BY ID ERROR:", error);
-    return handleError(res, error, "Loi lay chi tiet don hang POS");
+    return handleError(res, error, "Lỗi lấy chi tiết đơn hàng POS");
   }
 };
 
@@ -493,7 +493,7 @@ export const processPayment = async (req, res) => {
     if (!paymentReceived || paymentReceived < 0) {
       return res.status(400).json({
         success: false,
-        message: "So tien thanh toan khong hop le",
+        message: "Số tiền thanh toán không hợp lệ",
       });
     }
 
@@ -501,7 +501,7 @@ export const processPayment = async (req, res) => {
     if (!order) {
       return res.status(404).json({
         success: false,
-        message: "Khong tim thay don hang",
+        message: "Không tìm thấy đơn hàng",
       });
     }
 
@@ -523,14 +523,14 @@ export const processPayment = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        message: "Don hang khong o trang thai cho thanh toan",
+        message: "Đơn hàng không ở trạng thái chờ thanh toán",
       });
     }
 
     if (paymentReceived < order.totalAmount) {
       return res.status(400).json({
         success: false,
-        message: "So tien thanh toan khong du",
+        message: "Số tiền thanh toán không đủ",
       });
     }
 
@@ -563,7 +563,7 @@ export const processPayment = async (req, res) => {
       status: "PROCESSING",
       updatedBy: req.user._id,
       updatedAt: new Date(),
-      note: `Da thanh toan - Thu ngan: ${req.user.fullName} - Cho nhap IMEI`,
+      note: `Đã thanh toán - Thu ngân: ${req.user.fullName} - Chờ nhập IMEI`,
     });
 
     await order.save();
@@ -577,12 +577,12 @@ export const processPayment = async (req, res) => {
 
     return res.json({
       success: true,
-      message: "Thanh toan thanh cong! Vui long nhap IMEI de hoan tat.",
+      message: "Thanh toán thành công! Vui lòng nhập IMEI để hoàn tất.",
       data: { order },
     });
   } catch (error) {
     console.error("PROCESS PAYMENT ERROR:", error);
-    return handleError(res, error, "Loi xu ly thanh toan");
+    return handleError(res, error, "Lỗi xử lý thanh toán");
   }
 };
 
@@ -596,7 +596,7 @@ export const finalizePOSOrder = async (req, res) => {
 
     const order = await Order.findById(orderId).session(session);
     if (!order) {
-      throw buildHttpError(404, "ORDER_NOT_FOUND", "Khong tim thay don hang");
+      throw buildHttpError(404, "ORDER_NOT_FOUND", "Không tìm thấy đơn hàng");
     }
 
     if (order.orderSource !== "IN_STORE") {
@@ -607,7 +607,7 @@ export const finalizePOSOrder = async (req, res) => {
 
     if (order.status !== "PROCESSING" && order.status !== "PENDING_PAYMENT") {
       if (order.paymentStatus !== "PAID") {
-        throw buildHttpError(400, "ORDER_NOT_PAID", "Don hang chua duoc thanh toan");
+        throw buildHttpError(400, "ORDER_NOT_PAID", "Đơn hàng chưa được thanh toán");
       }
     }
 
@@ -766,7 +766,7 @@ export const finalizePOSOrder = async (req, res) => {
       status: "DELIVERED",
       updatedBy: req.user._id,
       updatedAt: new Date(),
-      note: `Hoan tat don hang - Hoa don ${order.paymentInfo.invoiceNumber}`,
+      note: `Hoàn tất đơn hàng - Hóa đơn ${order.paymentInfo.invoiceNumber}`,
     });
 
     await activateWarrantyForOrder({
@@ -781,13 +781,13 @@ export const finalizePOSOrder = async (req, res) => {
 
     return res.json({
       success: true,
-      message: "Don hang da hoan tat!",
+      message: "Đơn hàng đã hoàn tất!",
       data: { order },
     });
   } catch (error) {
     await session.abortTransaction();
     console.error("FINALIZE ORDER ERROR:", error);
-    return handleError(res, error, "Loi hoan tat don hang");
+    return handleError(res, error, "Lỗi hoàn tất đơn hàng");
   } finally {
     session.endSession();
   }
@@ -803,7 +803,7 @@ export const cancelPendingOrder = async (req, res) => {
 
     const order = await Order.findById(orderId).session(session);
     if (!order) {
-      throw buildHttpError(404, "ORDER_NOT_FOUND", "Khong tim thay don hang");
+      throw buildHttpError(404, "ORDER_NOT_FOUND", "Không tìm thấy đơn hàng");
     }
 
     if (order.orderSource !== "IN_STORE") {
@@ -815,7 +815,7 @@ export const cancelPendingOrder = async (req, res) => {
 
     const currentStage = resolveOrderStage(order);
     if (currentStage !== "PENDING_PAYMENT") {
-      throw buildHttpError(400, "ORDER_STATUS_INVALID", "Chi huy duoc don dang cho thanh toan");
+      throw buildHttpError(400, "ORDER_STATUS_INVALID", "Chỉ hủy được đơn đang chờ thanh toán");
     }
 
     const pickMovements = await StockMovement.find({
@@ -973,13 +973,13 @@ export const cancelPendingOrder = async (req, res) => {
 
     return res.json({
       success: true,
-      message: "Da huy don hang va hoan kho thanh cong",
+      message: "Đã hủy đơn hàng và hoàn kho thành công",
       data: { order },
     });
   } catch (error) {
     await session.abortTransaction();
     console.error("CANCEL ORDER ERROR:", error);
-    return handleError(res, error, "Loi huy don hang");
+    return handleError(res, error, "Lỗi hủy đơn hàng");
   } finally {
     session.endSession();
   }
@@ -993,7 +993,7 @@ export const issueVATInvoice = async (req, res) => {
     if (!companyName || !taxCode) {
       return res.status(400).json({
         success: false,
-        message: "Thieu thong tin cong ty hoac ma so thue",
+        message: "Thiếu thông tin công ty hoặc mã số thuế",
       });
     }
 
@@ -1001,7 +1001,7 @@ export const issueVATInvoice = async (req, res) => {
     if (!order) {
       return res.status(404).json({
         success: false,
-        message: "Khong tim thay don hang",
+        message: "Không tìm thấy đơn hàng",
       });
     }
 
@@ -1017,14 +1017,14 @@ export const issueVATInvoice = async (req, res) => {
     if (order.paymentStatus !== "PAID") {
       return res.status(400).json({
         success: false,
-        message: "Chi xuat hoa don cho don da thanh toan",
+        message: "Chỉ xuất hóa đơn cho đơn đã thanh toán",
       });
     }
 
     if (order.vatInvoice?.invoiceNumber) {
       return res.status(400).json({
         success: false,
-        message: "Don hang da co hoa don VAT",
+        message: "Đơn hàng đã có hóa đơn VAT",
       });
     }
 
@@ -1134,7 +1134,7 @@ export const getPOSOrderHistory = async (req, res) => {
     });
   } catch (error) {
     console.error("GET POS HISTORY ERROR:", error);
-    return handleError(res, error, "Loi lay lich su don hang");
+    return handleError(res, error, "Lỗi lấy lịch sử đơn hàng");
   }
 };
 

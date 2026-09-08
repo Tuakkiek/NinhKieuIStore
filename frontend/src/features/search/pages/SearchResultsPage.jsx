@@ -158,7 +158,7 @@ const SearchResultsPage = () => {
             <div className="mt-3 flex items-center gap-2 text-sm">
               <Sparkles className="w-4 h-4 text-blue-600" />
               <span className="text-gray-600">
-                Da tu dong sua thanh:{" "}
+                Đã tự động sửa thành:{" "}
                 <span className="text-blue-600 font-medium">{correctedQuery}</span>
               </span>
             </div>
@@ -173,7 +173,7 @@ const SearchResultsPage = () => {
               )}
               {extractedAttributes.color && (
                 <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
-                  Mau: {extractedAttributes.color}
+                  Màu: {extractedAttributes.color}
                 </span>
               )}
               {extractedAttributes.model && (
@@ -214,7 +214,7 @@ const SearchResultsPage = () => {
                 onClick={() => setShowMobileFilter(true)}
               >
                 <SlidersHorizontal className="w-5 h-5" />
-                Bo loc
+                Bộ lọc
                 {activeFiltersCount > 0 && (
                   <span className="bg-red-500 text-white text-xs font-bold px-2.5 py-1 rounded-full">
                     {activeFiltersCount}
@@ -228,7 +228,7 @@ const SearchResultsPage = () => {
                 <SheetHeader className="sticky top-0 bg-white border-b z-10 px-6 py-5">
                   <div className="flex items-center justify-between">
                     <SheetTitle className="text-xl font-bold">
-                      Bo loc tim kiem
+                      Bộ lọc tìm kiếm
                     </SheetTitle>
                     <button
                       onClick={() => setShowMobileFilter(false)}
@@ -259,7 +259,7 @@ const SearchResultsPage = () => {
                       className="flex-1 bg-blue-600 hover:bg-blue-700"
                       onClick={() => setShowMobileFilter(false)}
                     >
-                      Xem {filteredProducts.length.toLocaleString("vi-VN")} ket qua
+                      Xem {filteredProducts.length.toLocaleString("vi-VN")} kết quả
                     </Button>
                   </div>
                 </div>
@@ -288,7 +288,7 @@ const SearchResultsPage = () => {
                       disabled={pageParam === 1}
                       onClick={() => handlePageChange(pageParam - 1)}
                     >
-                      Truoc
+                      Trước
                     </Button>
 
                     {Array.from({ length: Math.min(totalPages, 7) }, (_, index) => {
@@ -330,13 +330,13 @@ const SearchResultsPage = () => {
               <div className="text-center py-20 bg-white rounded-2xl border-2 border-dashed border-gray-200">
                 <Package className="w-20 h-20 text-gray-300 mx-auto mb-6" />
                 <h3 className="text-2xl font-bold text-gray-800 mb-3">
-                  Khong tim thay san pham nao
+                  Không tìm thấy sản phẩm nào
                 </h3>
                 <p className="text-gray-500 mb-8 max-w-md mx-auto">
-                  Thu thay doi tu khoa hoac bo bot bo loc de xem them ket qua.
+                  Thử thay đổi từ khóa hoặc bỏ bớt bộ lọc để xem thêm kết quả.
                 </p>
                 <Button onClick={handleClearFilters} size="lg">
-                  Xoa bo loc va thu lai
+                  Xóa bộ lọc và thử lại
                 </Button>
               </div>
             )}

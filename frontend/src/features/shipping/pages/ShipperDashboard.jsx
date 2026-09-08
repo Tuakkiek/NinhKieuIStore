@@ -1071,7 +1071,7 @@ const ShipperDashboard = () => {
                 {RETURN_REASON_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label} - {option.description}{" "}
-                    {option.restoresStock ? "(Hoan kho)" : "(Khong hoan kho)"}
+                    {option.restoresStock ? "(Hoàn kho)" : "(Không hoàn kho)"}
                   </option>
                 ))}
               </select>
@@ -1093,7 +1093,7 @@ const ShipperDashboard = () => {
                 <span>
                   {selectedReturnReasonMeta.restoresStock
                     ? "Kho se tu dong hoan ton khi tra hang."
-                    : "Ly do nay khong tu dong hoan ton kho."}
+                    : "Lý do này không tự động hoàn tồn kho."}
                 </span>
               </div>
             )}

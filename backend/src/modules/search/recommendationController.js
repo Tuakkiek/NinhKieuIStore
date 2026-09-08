@@ -49,7 +49,7 @@ export const getRelatedProducts = async (req, res) => {
     if (!product) {
       return res.status(404).json({
         success: false,
-        message: "Khong tim thay san pham",
+        message: "Không tìm thấy sản phẩm",
       });
     }
 

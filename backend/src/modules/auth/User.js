@@ -183,7 +183,7 @@ const userSchema = new mongoose.Schema(
 
     phoneNumber: {
       type: String,
-      required: [true, "Vui long nhap so dien thoai"],
+      required: [true, "Vui lòng nhập số điện thoại"],
       unique: true,
       trim: true,
       validate: {
@@ -191,7 +191,7 @@ const userSchema = new mongoose.Schema(
           if (!this.isNew) return true;
           return /^0\d{9}$/.test(v);
         },
-        message: "So dien thoai phai co 10 chu so va bat dau bang so 0",
+        message: "Số điện thoại phải có 10 chữ số và bắt đầu bằng số 0",
       },
     },
 
@@ -205,7 +205,7 @@ const userSchema = new mongoose.Schema(
           if (!v) return true;
           return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
         },
-        message: "Email khong hop le. Email phai co dang: example@domain.com",
+        message: "Email không hợp lệ. Email phải có dạng: example@domain.com",
       },
     },
 
@@ -227,7 +227,7 @@ const userSchema = new mongoose.Schema(
 
     password: {
       type: String,
-      required: [true, "Vui long nhap mat khau"],
+      required: [true, "Vui lòng nhập mật khẩu"],
       minlength: [8, "Mat khau phai co it nhat 8 ky tu"],
       validate: {
         validator(v) {

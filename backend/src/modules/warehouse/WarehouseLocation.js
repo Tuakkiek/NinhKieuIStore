@@ -109,7 +109,7 @@ warehouseLocationSchema.methods.canAccommodate = function canAccommodate(quantit
 
 warehouseLocationSchema.methods.addStock = async function addStock(quantity) {
   if (!this.canAccommodate(quantity)) {
-    throw new Error("Vi tri khong du cho");
+    throw new Error("Vị trí không đủ chỗ");
   }
   this.currentLoad += quantity;
   await this.save();
@@ -117,7 +117,7 @@ warehouseLocationSchema.methods.addStock = async function addStock(quantity) {
 
 warehouseLocationSchema.methods.removeStock = async function removeStock(quantity) {
   if (this.currentLoad < quantity) {
-    throw new Error("So luong trong kho khong du");
+    throw new Error("Số lượng trong kho không đủ");
   }
   this.currentLoad -= quantity;
   await this.save();

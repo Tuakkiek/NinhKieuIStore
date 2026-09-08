@@ -33,15 +33,15 @@ import {
 
 const ROLE_LABELS = {
   GLOBAL_ADMIN: "Quản trị viên toàn hệ thống",
-  ADMIN: "Quan tri vien",
-  BRANCH_ADMIN: "Quan tri chi nhanh",
-  SALES_STAFF: "Nhan vien ban hang",
-  WAREHOUSE_MANAGER: "Quan ly kho",
-  WAREHOUSE_STAFF: "Nhan vien kho",
-  PRODUCT_MANAGER: "Quan ly san pham",
-  ORDER_MANAGER: "Quan ly don hang",
-  SHIPPER: "Nhan vien giao hang",
-  POS_STAFF: "Nhan vien POS",
+  ADMIN: "Quản trị viên",
+  BRANCH_ADMIN: "Quản trị chi nhánh",
+  SALES_STAFF: "Nhân viên bán hàng",
+  WAREHOUSE_MANAGER: "Quản lý kho",
+  WAREHOUSE_STAFF: "Nhân viên kho",
+  PRODUCT_MANAGER: "Quản lý sản phẩm",
+  ORDER_MANAGER: "Quản lý đơn hàng",
+  SHIPPER: "Nhân viên giao hàng",
+  POS_STAFF: "Nhân viên POS",
   CASHIER: "Thu ngan",
 };
 

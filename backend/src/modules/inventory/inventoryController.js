@@ -104,7 +104,7 @@ export const checkAvailability = async (req, res) => {
 
     res.status(500).json({
       success: false,
-      message: "Khong the kiem tra ton kho",
+      message: "Không thể kiểm tra tồn kho",
       error: error.message,
     });
   }
@@ -122,7 +122,7 @@ export const getByStore = async (req, res) => {
       } else {
         return res.status(403).json({
           success: false,
-          message: "Tai khoan khong thuoc ve chi nhanh nao",
+          message: "Tài khoản không thuộc về chi nhánh nào",
         });
       }
     }
@@ -162,7 +162,7 @@ export const getByStore = async (req, res) => {
 
     res.status(500).json({
       success: false,
-      message: "Khong the lay ton kho cua cua hang",
+      message: "Không thể lấy tồn kho của cửa hàng",
       error: error.message,
     });
   }
@@ -339,7 +339,7 @@ export const getConsolidatedInventory = async (req, res) => {
 
     res.status(500).json({
       success: false,
-      message: "Khong the tong hop ton kho",
+      message: "Không thể tổng hợp tồn kho",
       error: error.message,
     });
   }
@@ -422,7 +422,7 @@ export const getStoreInventoryComparison = async (req, res) => {
 
     res.status(500).json({
       success: false,
-      message: "Khong the so sanh ton kho giua cac cua hang",
+      message: "Không thể so sánh tồn kho giữa các cửa hàng",
       error: error.message,
     });
   }
@@ -521,7 +521,7 @@ export const getLowStockAlerts = async (req, res) => {
 
     res.status(500).json({
       success: false,
-      message: "Khong the lay canh bao ton kho thap",
+      message: "Không thể lấy cảnh báo tồn kho thấp",
       error: error.message,
     });
   }
@@ -594,7 +594,7 @@ export const getReplenishmentRecommendations = async (req, res) => {
 
     res.status(500).json({
       success: false,
-      message: "Khong the lay de xuat bo sung ton kho",
+      message: "Không thể lấy đề xuất bổ sung tồn kho",
       error: error.message,
     });
   }
@@ -611,13 +611,13 @@ export const runReplenishmentSnapshotNow = async (req, res) => {
     if (!result.success) {
       return res.status(500).json({
         success: false,
-        message: result.error || "Khong the tao replenishment snapshot",
+        message: result.error || "Không thể tạo replenishment snapshot",
       });
     }
 
     return res.json({
       success: true,
-      message: "Da tao replenishment snapshot",
+      message: "Đã tạo replenishment snapshot",
       result,
     });
   } catch (error) {
@@ -628,7 +628,7 @@ export const runReplenishmentSnapshotNow = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: "Khong the tao replenishment snapshot",
+      message: "Không thể tạo replenishment snapshot",
       error: error.message,
     });
   }
@@ -671,7 +671,7 @@ export const getDemandPredictions = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: "Khong the du doan nhu cau ton kho",
+      message: "Không thể dự đoán nhu cầu tồn kho",
       error: error.message,
     });
   }
@@ -717,7 +717,7 @@ export const getSkuDemandPrediction = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: "Khong the du doan nhu cau cho SKU",
+      message: "Không thể dự đoán nhu cầu cho SKU",
       error: error.message,
     });
   }
@@ -775,7 +775,7 @@ export const getRecentStockMovements = async (req, res) => {
 
     res.status(500).json({
       success: false,
-      message: "Khong the lay lich su bien dong ton kho",
+      message: "Không thể lấy lịch sử biến động tồn kho",
       error: error.message,
     });
   }

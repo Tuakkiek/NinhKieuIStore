@@ -19,7 +19,7 @@ export const protect = async (req, res, next) => {
       return res.status(401).json({
         success: false,
         code: "AUTHN_MISSING_TOKEN",
-        message: "Vui long dang nhap de truy cap",
+        message: "Vui lòng đăng nhập để truy cập",
       });
     }
 
@@ -30,7 +30,7 @@ export const protect = async (req, res, next) => {
       return res.status(401).json({
         success: false,
         code: "AUTHN_USER_NOT_FOUND",
-        message: "Nguoi dung khong ton tai",
+        message: "Người dùng không tồn tại",
       });
     }
 
@@ -38,7 +38,7 @@ export const protect = async (req, res, next) => {
       return res.status(403).json({
         success: false,
         code: "AUTHN_LOCKED",
-        message: "Tai khoan da bi khoa",
+        message: "Tài khoản đã bị khóa",
       });
     }
 
@@ -48,7 +48,7 @@ export const protect = async (req, res, next) => {
       return res.status(401).json({
         success: false,
         code: "AUTHN_TOKEN_OUTDATED",
-        message: "Token da het han do thay doi quyen truy cap",
+        message: "Token đã hết hạn do thay đổi quyền truy cập",
       });
     }
 
@@ -63,7 +63,7 @@ export const protect = async (req, res, next) => {
     return res.status(401).json({
       success: false,
       code: "AUTHN_INVALID_TOKEN",
-      message: "Token khong hop le hoac da het han",
+      message: "Token không hợp lệ hoặc đã hết hạn",
     });
   }
 };

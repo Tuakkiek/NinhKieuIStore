@@ -84,7 +84,7 @@ router.get("/product/:productId", requireGlobalAnalytics, async (req, res) => {
     if (!salesData) {
       return res.status(404).json({
         success: false,
-        message: "Khong tim thay du lieu ban hang",
+        message: "Không tìm thấy dữ liệu bán hàng",
       });
     }
 
@@ -107,7 +107,7 @@ router.get("/sales-by-time", requireGlobalAnalytics, requireStepUp(AUTHZ_ACTIONS
     if (!category || !startDate || !endDate) {
       return res.status(400).json({
         success: false,
-        message: "Thieu tham so: category, startDate, endDate",
+        message: "Thiếu tham số: category, startDate, endDate",
       });
     }
 
@@ -146,7 +146,7 @@ router.delete(
 
     res.json({
       success: true,
-      message: "Da reset du lieu ban hang",
+      message: "Đã đặt lại dữ liệu bán hàng",
     });
   } catch (error) {
     res.status(500).json({

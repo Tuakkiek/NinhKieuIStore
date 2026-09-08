@@ -41,7 +41,7 @@ const hasTransferAccess = (req, transfer) => {
 
 const ensureTransferAccess = (req, transfer) => {
   if (!hasTransferAccess(req, transfer)) {
-    throw new Error("AUTHZ_BRANCH_FORBIDDEN: Ban khong duoc xem transfer nay");
+    throw new Error("AUTHZ_BRANCH_FORBIDDEN: Bạn không được xem transfer này");
   }
 };
 
@@ -67,10 +67,10 @@ const ensureStore = async (storeId, session) => {
     .session(session);
 
   if (!store) {
-    throw new Error(`Khong tim thay cua hang: ${storeId}`);
+    throw new Error(`Không tìm thấy cửa hàng: ${storeId}`);
   }
   if (store.status !== "ACTIVE") {
-    throw new Error(`Cua hang ${store.code} khong o trang thai ACTIVE`);
+    throw new Error(`Cửa hàng ${store.code} không ở trạng thái ACTIVE`);
   }
 
   return store;
@@ -325,7 +325,7 @@ const syncPhysicalDestinationInventoryOnReceipt = async ({
   }).sort({ createdAt: 1 }).session(session);
 
   if (!targetLocation) {
-    const warnMsg = `[CANH BAO] Khong tim thay vi tri kho vat ly cho SKU ${item.variantSku} tai ${transfer.toStore.storeCode}.`;
+    const warnMsg = `[CẢNH BÁO] Không tìm thấy vị trí kho vật lý cho SKU ${item.variantSku} tại ${transfer.toStore.storeCode}.`;
     console.warn(`[StockTransfer] ${warnMsg}`); // eslint-disable-line no-console
     transfer.receivingNotes = [transfer.receivingNotes, warnMsg].filter(Boolean).join(" | ");
     return;
@@ -386,7 +386,7 @@ const validateTransferItemsForRequest = async ({
   for (const rawItem of rawItems) {
     const sku = normalizeSku(rawItem.variantSku || rawItem.sku);
     if (sku && skuSet.has(sku)) {
-      throw new Error(`SKU trung lap trong danh sach yeu cau: ${sku}`);
+      throw new Error(`SKU trùng lặp trong danh sách yêu cầu: ${sku}`);
     }
     if (sku) skuSet.add(sku);
   }
@@ -398,7 +398,7 @@ const validateTransferItemsForRequest = async ({
     );
 
     if (!variantSku || !requestedQuantity) {
-      throw new Error("Thong tin item transfer khong hop le");
+      throw new Error("Thông tin item transfer không hợp lệ");
     }
 
     const inventoryFilter = {
@@ -416,7 +416,7 @@ const validateTransferItemsForRequest = async ({
       .setOptions({ skipBranchIsolation: true });
 
     if (!sourceInventory) {
-      throw new Error(`Khong tim thay ton kho nguon cho SKU ${variantSku}`);
+      throw new Error(`Không tìm thấy tồn kho nguồn cho SKU ${variantSku}`);
     }
 
     const {
@@ -465,7 +465,7 @@ const validateTransferItemsForRequest = async ({
 
     if (available < requestedQuantity) {
       throw new Error(
-        `Khong du ton kha dung cho SKU ${variantSku}. Available: ${available}`
+        `Không đủ tồn khả dụng cho SKU ${variantSku}. Available: ${available}`
       );
     }
 
@@ -487,7 +487,7 @@ const validateTransferItemsForRequest = async ({
   }
 
   if (normalizedItems.length === 0) {
-    throw new Error("Danh sach item transfer trong");
+    throw new Error("Danh sách item transfer trống");
   }
 
   return normalizedItems;
@@ -512,16 +512,16 @@ export const requestTransfer = async (req, res) => {
     });
 
     if (!fromStoreId || !toStoreId) {
-      throw new Error("Thieu thong tin cua hang nguon/dich");
+      throw new Error("Thiếu thông tin cửa hàng nguồn/đích");
     }
     if (String(fromStoreId) === String(toStoreId)) {
-      throw new Error("Cua hang nguon va dich khong duoc trung nhau");
+      throw new Error("Cửa hàng nguồn và đích không được trùng nhau");
     }
     if (!Array.isArray(items) || items.length === 0) {
-      throw new Error("Danh sach item transfer khong hop le");
+      throw new Error("Danh sách item transfer không hợp lệ");
     }
     if (!reason) {
-      throw new Error("Ly do transfer la bat buoc");
+      throw new Error("Lý do transfer là bắt buộc");
     }
 
     const fromStore = await ensureStore(fromStoreId, session);
@@ -567,7 +567,7 @@ export const requestTransfer = async (req, res) => {
     await session.abortTransaction();
     return res.status(400).json({
       success: false,
-      message: error.message || "Khong the tao yeu cau transfer",
+      message: error.message || "Không thể tạo yêu cầu transfer",
     });
   } finally {
     session.endSession();
@@ -633,7 +633,7 @@ export const getTransfers = async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: error.message || "Khong the lay danh sach transfer",
+      message: error.message || "Không thể lấy danh sách transfer",
     });
   }
 };
@@ -644,7 +644,7 @@ export const getTransferById = async (req, res) => {
     if (!transfer) {
       return res.status(404).json({
         success: false,
-        message: "Khong tim thay transfer",
+        message: "Không tìm thấy transfer",
       });
     }
 
@@ -658,7 +658,7 @@ export const getTransferById = async (req, res) => {
     const isForbidden = String(error.message || "").startsWith("AUTHZ_BRANCH_FORBIDDEN");
     return res.status(isForbidden ? 403 : 500).json({
       success: false,
-      message: error.message || "Khong the lay chi tiet transfer",
+      message: error.message || "Không thể lấy chi tiết transfer",
     });
   }
 };
@@ -685,7 +685,7 @@ export const confirmShipment = async (req, res) => {
   try {
     const transfer = await StockTransfer.findById(req.params.id).session(session);
     if (!transfer) {
-      throw new Error("Khong tim thay transfer");
+      throw new Error("Không tìm thấy transfer");
     }
     if (transfer.status !== "CREATED") {
       throw new Error(
@@ -698,7 +698,7 @@ export const confirmShipment = async (req, res) => {
       !isGlobalAdminRequest(req) &&
       !allowedBranches.includes(String(transfer.fromStore.storeId))
     ) {
-      throw new Error("AUTHZ_BRANCH_FORBIDDEN: Ban khong quan ly kho nguon");
+      throw new Error("AUTHZ_BRANCH_FORBIDDEN: Bạn không quản lý kho nguồn");
     }
 
     transfer.status = "IN_TRANSIT";
@@ -720,7 +720,7 @@ export const confirmShipment = async (req, res) => {
     await session.abortTransaction();
     return res.status(400).json({
       success: false,
-      message: error.message || "Khong the xac nhan gui hang",
+      message: error.message || "Không thể xác nhận gửi hàng",
     });
   } finally {
     session.endSession();
@@ -734,7 +734,7 @@ export const confirmReceived = async (req, res) => {
   try {
     const transfer = await StockTransfer.findById(req.params.id).session(session);
     if (!transfer) {
-      throw new Error("Khong tim thay transfer");
+      throw new Error("Không tìm thấy transfer");
     }
 
     console.log("[transfer-debug][receive-start]", { // eslint-disable-line no-console
@@ -768,7 +768,7 @@ export const confirmReceived = async (req, res) => {
       !isGlobalAdminRequest(req) &&
       !allowedBranches.includes(String(transfer.toStore.storeId))
     ) {
-      throw new Error("AUTHZ_BRANCH_FORBIDDEN: Ban khong quan ly kho dich");
+      throw new Error("AUTHZ_BRANCH_FORBIDDEN: Bạn không quản lý kho đích");
     }
 
     const actorName = getActorName(req.user);
@@ -791,7 +791,7 @@ export const confirmReceived = async (req, res) => {
         .setOptions({ skipBranchIsolation: true });
 
       if (!sourceInventory) {
-        throw new Error(`Khong tim thay ton kho nguon cho SKU ${item.variantSku}`);
+        throw new Error(`Không tìm thấy tồn kho nguồn cho SKU ${item.variantSku}`);
       }
 
       await syncPhysicalSourceInventoryOnReceipt({
@@ -860,7 +860,7 @@ export const confirmReceived = async (req, res) => {
     }
 
     if (totalMoved <= 0) {
-      throw new Error("Khong co san pham nao duoc xac nhan");
+      throw new Error("Không có sản phẩm nào được xác nhận");
     }
 
     transfer.status = "COMPLETED";
@@ -886,7 +886,7 @@ export const confirmReceived = async (req, res) => {
     await session.abortTransaction();
     return res.status(400).json({
       success: false,
-      message: error.message || "Khong the xac nhan nhan transfer",
+      message: error.message || "Không thể xác nhận nhận transfer",
     });
   } finally {
     session.endSession();
@@ -904,7 +904,7 @@ export const cancelTransfer = async (req, res) => {
 
     const transfer = await StockTransfer.findById(req.params.id).session(session);
     if (!transfer) {
-      throw new Error("Khong tim thay transfer");
+      throw new Error("Không tìm thấy transfer");
     }
     if (!TRANSFER_EDITABLE_STATUSES.has(transfer.status)) {
       throw new Error("Chi transfer CREATED moi duoc huy");
@@ -927,7 +927,7 @@ export const cancelTransfer = async (req, res) => {
     await session.abortTransaction();
     return res.status(400).json({
       success: false,
-      message: error.message || "Khong the huy transfer",
+      message: error.message || "Không thể hủy transfer",
     });
   } finally {
     session.endSession();

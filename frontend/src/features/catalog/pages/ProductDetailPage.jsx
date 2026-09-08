@@ -357,7 +357,7 @@ const ProductDetailPage = () => {
       return variantName;
     }
 
-    return String(variant?.attributes?.storage || "").trim() || "Mac dinh";
+    return String(variant?.attributes?.storage || "").trim() || "Mặc định";
   };
 
   const getVariantKeyOptions = () => {

@@ -40,15 +40,15 @@ const CATEGORY_DISPLAY_LABELS = {
   Mac: "MacBook",
   AirPods: "Tai nghe",
   AppleWatch: "Apple Watch",
-  Accessories: "Phu kien",
+  Accessories: "Phụ kiện",
 };
 
 const SORT_OPTIONS = [
-  { value: "default", label: "Mac dinh" },
-  { value: "price_asc", label: "Gia tang dan" },
-  { value: "price_desc", label: "Gia giam dan" },
-  { value: "newest", label: "Moi nhat" },
-  { value: "popular", label: "Ban chay" },
+  { value: "default", label: "Mặc định" },
+  { value: "price_asc", label: "Giá tăng dần" },
+  { value: "price_desc", label: "Giá giảm dần" },
+  { value: "newest", label: "Mới nhất" },
+  { value: "popular", label: "Bán chạy" },
 ];
 
 const ITEMS_PER_PAGE = 12;
@@ -297,7 +297,7 @@ const ProductsPage = ({ category: forcedCategory } = {}) => {
       const products = response?.data?.data?.products;
 
       if (!Array.isArray(products)) {
-        throw new Error("Du lieu tra ve khong hop le");
+        throw new Error("Dữ liệu trả về không hợp lệ");
       }
 
       logDebug("[ProductsPage] Fetch products response", {
@@ -319,7 +319,7 @@ const ProductsPage = ({ category: forcedCategory } = {}) => {
       const message =
         fetchError?.response?.data?.message ||
         fetchError?.message ||
-        "Khong the tai san pham";
+        "Không thể tải sản phẩm";
       setError(message);
       setAllProducts([]);
       logWarn("[ProductsPage] Fetch products failed", {
@@ -534,7 +534,7 @@ const ProductsPage = ({ category: forcedCategory } = {}) => {
     ? productTypeNameFromQuery ||
       resolvedProductType?.name ||
       allProducts?.[0]?.productType?.name ||
-      "San pham"
+      "Sản phẩm"
     : CATEGORY_DISPLAY_LABELS[category] || category;
 
   return (
@@ -549,7 +549,7 @@ const ProductsPage = ({ category: forcedCategory } = {}) => {
                 : categoryLabel}
           </h1>
           {searchQuery && (
-            <p className="text-sm text-gray-600">Danh muc: {categoryLabel}</p>
+            <p className="text-sm text-gray-600">Danh mục: {categoryLabel}</p>
           )}
         </div>
 
@@ -573,7 +573,7 @@ const ProductsPage = ({ category: forcedCategory } = {}) => {
           <main className="flex-1 min-w-0">
             <div className="mb-4 flex items-center justify-between flex-wrap gap-4">
               <p className="text-sm text-gray-600">
-                Tim thay <span className="font-semibold">{total}</span> san pham
+                Tìm thấy <span className="font-semibold">{total}</span> sản phẩm
                 {page > 1 && totalPages > 0 && ` - Trang ${page}/${totalPages}`}
               </p>
 
@@ -597,7 +597,7 @@ const ProductsPage = ({ category: forcedCategory } = {}) => {
                       className="lg:hidden flex items-center gap-2 h-10"
                     >
                       <SlidersHorizontal className="w-4 h-4" />
-                      Bo loc
+                      Bộ lọc
                       {activeFiltersCount > 0 && (
                         <span className="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full ml-1">
                           {activeFiltersCount}
@@ -613,7 +613,7 @@ const ProductsPage = ({ category: forcedCategory } = {}) => {
                     <SheetHeader className="sticky top-0 bg-white border-b z-10 p-6 pb-4">
                       <div className="flex items-center justify-between">
                         <SheetTitle className="text-xl font-bold">
-                          Bo loc san pham
+                          Bộ lọc sản phẩm
                         </SheetTitle>
                         <button
                           onClick={() => setMobileFiltersOpen(false)}
@@ -646,7 +646,7 @@ const ProductsPage = ({ category: forcedCategory } = {}) => {
                         className="w-full h-12 text-lg font-semibold"
                         onClick={() => setMobileFiltersOpen(false)}
                       >
-                        Xem {total.toLocaleString("vi-VN")} san pham
+                        Xem {total.toLocaleString("vi-VN")} sản phẩm
                       </Button>
                     </div>
                   </SheetContent>
@@ -672,14 +672,14 @@ const ProductsPage = ({ category: forcedCategory } = {}) => {
             {error && !loading && (
               <div className="text-center py-12">
                 <div className="text-red-600 mb-4">
-                  <p className="text-lg font-semibold">Da xay ra loi</p>
+                  <p className="text-lg font-semibold">Đã xảy ra lỗi</p>
                   <p className="text-sm">{error}</p>
                 </div>
                 <button
                   onClick={fetchProducts}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
-                  Thu lai
+                  Thử lại
                 </button>
               </div>
             )}
@@ -703,16 +703,16 @@ const ProductsPage = ({ category: forcedCategory } = {}) => {
             {!loading && !error && products.length === 0 && (
               <div className="text-center py-12 text-gray-500">
                 <Package className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                <p className="text-lg font-semibold mb-2">Khong tim thay san pham</p>
+                <p className="text-lg font-semibold mb-2">Không tìm thấy sản phẩm</p>
                 <p className="text-sm">
-                  Thu thay doi bo loc hoac tim kiem voi tu khoa khac
+                  Thử thay đổi bộ lọc hoặc tìm kiếm với từ khóa khác
                 </p>
                 {activeFiltersCount > 0 && (
                   <button
                     onClick={clearFilters}
                     className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                   >
-                    Xoa bo loc
+                    Xóa bộ lọc
                   </button>
                 )}
               </div>
@@ -726,7 +726,7 @@ const ProductsPage = ({ category: forcedCategory } = {}) => {
                   disabled={page === 1}
                   onClick={() => handlePageChange(Math.max(1, page - 1))}
                 >
-                  Truoc
+                  Trước
                 </Button>
 
                 <Button
