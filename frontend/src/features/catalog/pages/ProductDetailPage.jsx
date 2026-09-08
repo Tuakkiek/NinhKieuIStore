@@ -454,7 +454,7 @@ const ProductDetailPage = () => {
           <div className="lg:col-span-7 order-1">
             <div className="bg-white rounded-lg overflow-hidden lg:sticky lg:top-4">
               {/* Main Image */}
-              <div className="relative aspect-square sm:aspect-video bg-white">
+              <div className="relative aspect-square sm:aspect-video bg-white overflow-hidden">
                 {/* 16:9 Aspect Ratio */}
                 {activeMediaTab === "video" && product.videoUrl ? (
                   // Hiển thị video
@@ -490,11 +490,11 @@ const ProductDetailPage = () => {
                         const currentImages = getCurrentMainImages();
                         return currentImages.length > 0 ? (
                           currentImages.map((img, idx) => (
-                            <CarouselItem key={idx} className="h-full pl-0 flex items-center justify-center">
+                            <CarouselItem key={idx} className="h-full pl-0 flex items-center justify-center overflow-hidden">
                               <img
                                 src={img || "/placeholder.png"}
                                 alt={`${product.name} - ${idx + 1}`}
-                                className="w-full h-full object-contain p-4 sm:p-8"
+                                className="max-w-full max-h-full object-contain p-4 sm:p-8"
                               />
                             </CarouselItem>
                           ))
@@ -728,6 +728,29 @@ const ProductDetailPage = () => {
                 <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 mb-2 leading-tight">
                   {product.name}
                 </h1>
+                {/* SKU & Model Info */}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 mb-2">
+                  {selectedVariant?.sku && (
+                    <span className="bg-gray-100 px-2 py-0.5 rounded font-mono">
+                      SKU: {selectedVariant.sku}
+                    </span>
+                  )}
+                  {product.model && (
+                    <span>
+                      <span className="font-medium">Model:</span> {product.model}
+                    </span>
+                  )}
+                  {product.condition && (
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                      product.condition === "NEW" ? "bg-green-100 text-green-700" :
+                      product.condition === "LIKE_NEW" ? "bg-blue-100 text-blue-700" :
+                      "bg-amber-100 text-amber-700"
+                    }`}>
+                      {product.condition === "NEW" ? "Mới 100%" :
+                       product.condition === "LIKE_NEW" ? "Like New" : "Đã sử dụng"}
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-4 text-sm">
                   <div className="flex items-center gap-1">
                     <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />

@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/keep-awake",
+      "schedule": "*/5 * * * *"
+    }
+  ],
+  "cleanUrls": true,
+  "rewrites": [
+    { "source": "/api/keep-awake", "destination": "/api/keep-awake" }
+  ]
+}

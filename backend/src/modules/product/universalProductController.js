@@ -88,7 +88,16 @@ const extractVariantAttributes = (option = {}) => {
 
 const deriveVariantName = (option = {}) => {
   const explicitName = String(option?.variantName || "").trim();
-  if (explicitName) return explicitName;
+  if (explicitName) {
+    // Clean up variant name - remove price if accidentally included
+    // Common patterns: "256GB 22.990.000đ", "128GB - 15.000.000đ", etc.
+    const cleanedName = explicitName
+      .replace(/\d{1,3}(\.\d{3})*đ?\s*$/, "") // Remove trailing price like "22.990.000đ"
+      .replace(/\s*[-–]\s*\d+(\.\d+)*\s*$/, "") // Remove trailing "- 15000000"
+      .replace(/^\d+\s*(GB|TB)\s*/i, "$1") // Clean "256GB" if that's all there is
+      .trim();
+    return cleanedName || explicitName; // Fallback to original if cleanup resulted in empty
+  }
 
   const fallbackParts = [
     option?.storage,

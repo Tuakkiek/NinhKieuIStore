@@ -195,19 +195,33 @@ app.use("/api/devices", deviceRoutes);
 app.use("/api/warranty", warrantyRoutes);
 
 // ================================
-// 🔹 Health Check Endpoint
+// 🔹 Health Check Endpoint - Keep Awake
 // ================================
 app.get("/api/health", (req, res) => {
+  const memUsage = process.memoryUsage();
+  
   res.status(200).json({
     status: "OK",
     message: "Server is running",
     timestamp: new Date().toISOString(),
+    uptime: Math.floor(process.uptime()) + "s",
     environment: config.nodeEnv,
+    memory: {
+      heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024) + "MB",
+      heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024) + "MB",
+      rss: Math.round(memUsage.rss / 1024 / 1024) + "MB",
+    },
+    db: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
     uploads: {
       path: uploadsPath,
       exists: fs.existsSync(uploadsPath),
     },
   });
+});
+
+// Ping endpoint - lightweight, chỉ trả về 200 OK
+app.get("/api/ping", (req, res) => {
+  res.status(200).send("OK");
 });
 
 // ================================
