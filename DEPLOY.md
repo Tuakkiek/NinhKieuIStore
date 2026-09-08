@@ -5,9 +5,9 @@
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                                                                  │
-│   Frontend (React)  ──────►  Vercel                             │
-│   ├── URL: https://ninhkieu-store.vercel.app                    │
-│   ├── Custom Domain: canhtam.vn                                 │
+│   Frontend (React)  ──────►  Render Static Site                 │
+│   ├── URL: https://www.canthoistore.io.vn                        │
+│   ├── SPA Rewrite: /* → /index.html                             │
 │   └── API: Pings backend mỗi 5 phút để giữ backend awake       │
 │                                                                  │
 │   Backend (Node.js)  ──────►  Render                            │
@@ -43,16 +43,16 @@ git push -u origin main
 3. Connect GitHub repo `ninhkieu-istore-backend`
 4. Cấu hình:
 
-| Setting | Value |
-|---------|-------|
-| **Name** | `ninhkieu-istore` |
-| **Region** | Singapore |
-| **Branch** | `main` |
-| **Root Directory** | `backend` |
-| **Runtime** | `Node` |
-| **Build Command** | `npm run build` |
-| **Start Command** | `node src/server.js` |
-| **Instance Type** | `Free` |
+| Setting            | Value                |
+| ------------------ | -------------------- |
+| **Name**           | `ninhkieu-istore`    |
+| **Region**         | Singapore            |
+| **Branch**         | `main`               |
+| **Root Directory** | `backend`            |
+| **Runtime**        | `Node`               |
+| **Build Command**  | `npm install`        |
+| **Start Command**  | `node src/server.js` |
+| **Instance Type**  | `Free`               |
 
 ### Bước 1.3: Environment Variables
 
@@ -103,6 +103,7 @@ SMTP_PASS=your-app-password
 ### Bước 1.4: Health Check
 
 Trong **Health Checks**, set:
+
 ```
 Path: /api/ping
 ```
@@ -113,7 +114,7 @@ Click **Create Web Service** → Đợi deploy (~3-5 phút)
 
 ---
 
-## 2️⃣ Deploy Frontend + Keep-Alive lên Vercel
+## 2️⃣ Deploy Frontend lên Render Static Site
 
 ### Bước 2.1: Push code lên GitHub
 
@@ -124,28 +125,35 @@ git commit -m "Add Vercel deployment config"
 git push
 ```
 
-### Bước 2.2: Import lên Vercel
+### Bước 2.2: Tạo Static Site trên Render
 
-1. Đăng nhập [Vercel Dashboard](https://vercel.com/dashboard)
-2. Click **Add New...** → **Project**
-3. Import repo `ninhkieu-istore`
-4. Framework: **Vite**
-5. Root Directory: `.` (root)
+1. Đăng nhập [Render Dashboard](https://dashboard.render.com)
+2. Click **New** → **Static Site**
+3. Import repository và chọn thư mục frontend nếu Render yêu cầu
 
 ### Bước 2.3: Cấu hình Build
 
-```json
-{
-  "buildCommand": "cd frontend && npm install && npm run build",
-  "outputDirectory": "frontend/dist",
-  "installCommand": "npm install"
-}
+```text
+Root Directory: frontend
+Build Command: npm install && npm run build
+Publish Directory: dist
 ```
+
+Trong Render Dashboard → **Redirects/Rewrites**, thêm rule:
+
+```text
+Action: Rewrite
+Source: /*
+Destination: /index.html
+```
+
+Rule này bắt buộc cho React Router khi mở trực tiếp URL như
+`/dien-thoai/iphone-air?sku=00002063`.
 
 ### Bước 2.4: Environment Variables
 
 ```env
-VITE_API_URL=https://ninhkieu-istore.onrender.com/api
+VITE_API_URL=https://ninhkieu-istore-ct.onrender.com/api
 VITE_FEATURE_OMNICHANNEL_CHECKOUT=true
 ```
 
@@ -201,18 +209,18 @@ const BACKEND_URL = process.env.BACKEND_URL;
 async function pingBackend() {
   try {
     const response = await fetch(`${BACKEND_URL}/api/ping`, {
-      method: 'GET',
-      headers: { 'User-Agent': 'Vercel-KeepAwake/1.0' },
+      method: "GET",
+      headers: { "User-Agent": "Vercel-KeepAwake/1.0" },
       signal: AbortSignal.timeout(10000),
     });
     return response.ok;
   } catch (error) {
-    console.error('Ping failed:', error.message);
+    console.error("Ping failed:", error.message);
     return false;
   }
 }
 
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const getRandomDelay = () => Math.floor(Math.random() * 300000) + 180000; // 3-8 phút
 
 export default async function handler(req, res) {
@@ -229,7 +237,7 @@ export default async function handler(req, res) {
     success: result1 && result2,
     ping1: result1,
     ping2: result2,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 }
 ```
@@ -280,12 +288,12 @@ Trên Vercel Dashboard → Logs → Cron Jobs
 
 ## 📊 Chi phí
 
-| Service | Plan | Chi phí |
-|---------|------|---------|
-| Vercel Frontend | Hobby | Miễn phí |
-| Vercel Cron | Hobby | Miễn phí |
-| Render Backend | Free | Miễn phí (ngủ sau 15 phút) |
-| MongoDB Atlas | M0 Sandbox | Miễn phí |
+| Service         | Plan       | Chi phí                    |
+| --------------- | ---------- | -------------------------- |
+| Vercel Frontend | Hobby      | Miễn phí                   |
+| Vercel Cron     | Hobby      | Miễn phí                   |
+| Render Backend  | Free       | Miễn phí (ngủ sau 15 phút) |
+| MongoDB Atlas   | M0 Sandbox | Miễn phí                   |
 
 **Tổng: $0/tháng** (với Keep-Alive giữ backend awake)
 
@@ -316,12 +324,14 @@ Trên Vercel Dashboard → Logs → Cron Jobs
 ## 🔄 Redeploy
 
 ### Backend (Render)
+
 ```bash
 git push origin main
 # Render tự động deploy
 ```
 
 ### Frontend (Vercel)
+
 ```bash
 git push origin main
 # Vercel tự động deploy
@@ -334,6 +344,7 @@ Hoặc click **Redeploy** trên Dashboard.
 ## 📞 Hỗ trợ
 
 Nếu có vấn đề, kiểm tra:
+
 1. Render Logs → Backend errors
 2. Vercel Logs → Frontend + Cron errors
 3. MongoDB Atlas → Connection issues

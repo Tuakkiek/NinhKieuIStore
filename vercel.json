@@ -11,7 +11,8 @@
     }
   ],
   "rewrites": [
-    { "source": "/api/keep-awake", "destination": "/api/keep-awake" }
+    { "source": "/api/keep-awake", "destination": "/api/keep-awake" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
     {

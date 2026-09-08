@@ -261,40 +261,16 @@ setInterval(async () => {
 }, 5 * 60 * 1000);
 
 // ================================
-// 🔹 Production: Serve static files & SPA
+// 🔹 Backend API-only 404 handler
+// Frontend is deployed separately and owns the SPA routes.
 // ================================
-if (process.env.NODE_ENV === "production") {
-  const frontendPath = path.join(process.cwd(), "../frontend/dist");
-
-  console.log("📁 Current working directory:", process.cwd());
-  console.log("📁 Frontend path:", frontendPath);
-
-  // Serve static files (CSS, JS, images, etc.)
-  app.use(express.static(frontendPath));
-
-  // SPA fallback - catch all non-API routes
-  app.use((req, res, next) => {
-    if (!req.path.startsWith("/api") && !req.path.startsWith("/uploads")) {
-      res.sendFile(path.join(frontendPath, "index.html"), (err) => {
-        if (err) {
-          console.error("Error sending index.html:", err);
-          res.status(500).send("Error loading page");
-        }
-      });
-    } else {
-      next();
-    }
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: "Route not found",
+    path: req.path,
   });
-} else {
-  // Development 404 handler
-  app.use((req, res) => {
-    res.status(404).json({
-      success: false,
-      message: "Route not found",
-      path: req.path,
-    });
-  });
-}
+});
 
 // ================================
 // 🔹 Xử lý sự cố kết nối MongoDB
